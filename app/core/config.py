@@ -1,6 +1,6 @@
 # app/core/config.py
 from pydantic_settings import BaseSettings
-from pydantic import PostgresDsn, AnyHttpUrl, ConfigDict
+from pydantic import  ConfigDict
 from typing import List, Optional
 
 class Settings(BaseSettings):
@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 # 24 hours
     
     # Database
-    DATABASE_URL: PostgresDsn
+    DATABASE_URL: str = None
     DATABASE_URL_ASYNC: str = None
 
     FRONTEND_URL: str
