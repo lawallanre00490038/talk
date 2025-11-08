@@ -43,7 +43,8 @@ logger.addHandler(file_handler)
 
 
 allowed_origins = [
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "talk-lgsa.onrender.com",
 ]
 
 
@@ -74,37 +75,6 @@ def register_middleware(app: FastAPI):
         logger.error(f"Unhandled exception at {request.method} {request.url.path}: {str(exc)}")
         logger.error(traceback.format_exc())
         return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
-
-
-    
-
-    # @app.exception_handler(ValidationError)
-    # async def validation_exception_handler(request: Request, exc: ValidationError):
-    #     logger.error(f"Validation error at {request.method} {request.url.path}: {exc.errors()}")
-    #     return JSONResponse(status_code=422, content={"detail": safe_jsonable(exc.errors())})
-
-
-    # @app.exception_handler(HTTPException)
-    # async def http_exception_handler(request: Request, exc: HTTPException):
-    #     logger.error(f"HTTPException: {exc.detail} at {request.method} {request.url.path}")
-    #     return JSONResponse(status_code=exc.status_code, content={"detail": safe_jsonable(exc.detail)})
-
-
-    # @app.exception_handler(IntegrityError)
-    # async def db_integrity_error_handler(request: Request, exc: IntegrityError):
-    #     logger.error(f"Database integrity error at {request.method} {request.url.path}: {str(exc)}")
-    #     logger.error(traceback.format_exc())
-    #     return JSONResponse(status_code=400, content={"detail": "Database error occurred"})
-
-
-    # @app.exception_handler(Exception)
-    # async def unhandled_exception_handler(request: Request, exc: Exception):
-    #     logger.error(f"Unhandled exception at {request.method} {request.url.path}: {str(exc)}")
-    #     logger.error(traceback.format_exc())
-    #     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
-
-
-
 
     def get_status_color(status_code: int) -> str:
         if 200 <= status_code < 300:
@@ -159,7 +129,8 @@ def register_middleware(app: FastAPI):
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
         "localhost",
         "127.0.0.1",
-        "0.0.0.0"
+        "0.0.0.0",
+        "talk-lgsa.onrender.com",
     ])
 
 
