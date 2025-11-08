@@ -1,8 +1,8 @@
-"""addedd
+"""create initial tables
 
-Revision ID: 406dc2943c1f
-Revises: f15633d4cb59
-Create Date: 2025-11-05 15:10:37.407428
+Revision ID: 8923e1535aab
+Revises: 
+Create Date: 2025-11-08 15:46:19.076397
 
 """
 from typing import Sequence, Union
@@ -13,8 +13,8 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision: str = '406dc2943c1f'
-down_revision: Union[str, Sequence[str], None] = 'f15633d4cb59'
+revision: str = '8923e1535aab'
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -30,23 +30,24 @@ def upgrade() -> None:
     op.drop_index(op.f('ix_institution_name'), table_name='institution')
     op.create_index(op.f('ix_institution_institution_email'), 'institution', ['institution_email'], unique=True)
     op.create_index(op.f('ix_institution_institution_name'), 'institution', ['institution_name'], unique=True)
-    op.drop_column('institution', 'website')
-    op.drop_column('institution', 'description')
     op.drop_column('institution', 'location')
+    op.drop_column('institution', 'description')
+    op.drop_column('institution', 'website')
     op.drop_column('institution', 'name')
     op.add_column('studentprofile', sa.Column('institution_id', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+    op.add_column('studentprofile', sa.Column('institution_name', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.add_column('studentprofile', sa.Column('profile_picture', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-    op.add_column('studentprofile', sa.Column('falcuty', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+    op.add_column('studentprofile', sa.Column('faculty', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.add_column('studentprofile', sa.Column('department', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.add_column('studentprofile', sa.Column('matric_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.add_column('studentprofile', sa.Column('educational_level', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.add_column('studentprofile', sa.Column('course', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.drop_index(op.f('ix_studentprofile_school_name'), table_name='studentprofile')
     op.create_foreign_key(None, 'studentprofile', 'institution', ['institution_id'], ['id'])
-    op.drop_column('studentprofile', 'school_name')
     op.drop_column('studentprofile', 'major')
+    op.drop_column('studentprofile', 'school_name')
     op.add_column('user', sa.Column('profile_picture', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-    op.add_column('user', sa.Column('verification_token', sqlmodel.sql.sqltypes.AutoString(), nullable=False))
+    op.add_column('user', sa.Column('verification_token', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
     op.drop_column('user', 'avatar_url')
     # ### end Alembic commands ###
 
@@ -57,21 +58,22 @@ def downgrade() -> None:
     op.add_column('user', sa.Column('avatar_url', sa.VARCHAR(), autoincrement=False, nullable=True))
     op.drop_column('user', 'verification_token')
     op.drop_column('user', 'profile_picture')
-    op.add_column('studentprofile', sa.Column('major', sa.VARCHAR(), autoincrement=False, nullable=True))
     op.add_column('studentprofile', sa.Column('school_name', sa.VARCHAR(), autoincrement=False, nullable=False))
+    op.add_column('studentprofile', sa.Column('major', sa.VARCHAR(), autoincrement=False, nullable=True))
     op.drop_constraint(None, 'studentprofile', type_='foreignkey')
     op.create_index(op.f('ix_studentprofile_school_name'), 'studentprofile', ['school_name'], unique=False)
     op.drop_column('studentprofile', 'course')
     op.drop_column('studentprofile', 'educational_level')
     op.drop_column('studentprofile', 'matric_number')
     op.drop_column('studentprofile', 'department')
-    op.drop_column('studentprofile', 'falcuty')
+    op.drop_column('studentprofile', 'faculty')
     op.drop_column('studentprofile', 'profile_picture')
+    op.drop_column('studentprofile', 'institution_name')
     op.drop_column('studentprofile', 'institution_id')
     op.add_column('institution', sa.Column('name', sa.VARCHAR(), autoincrement=False, nullable=False))
-    op.add_column('institution', sa.Column('location', sa.VARCHAR(), autoincrement=False, nullable=True))
-    op.add_column('institution', sa.Column('description', sa.VARCHAR(), autoincrement=False, nullable=True))
     op.add_column('institution', sa.Column('website', sa.VARCHAR(), autoincrement=False, nullable=True))
+    op.add_column('institution', sa.Column('description', sa.VARCHAR(), autoincrement=False, nullable=True))
+    op.add_column('institution', sa.Column('location', sa.VARCHAR(), autoincrement=False, nullable=True))
     op.drop_index(op.f('ix_institution_institution_name'), table_name='institution')
     op.drop_index(op.f('ix_institution_institution_email'), table_name='institution')
     op.create_index(op.f('ix_institution_name'), 'institution', ['name'], unique=True)

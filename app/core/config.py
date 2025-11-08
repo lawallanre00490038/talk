@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     RESEND_API_KEY: Optional[str] = None
     RESEND_FROM_EMAIL: Optional[str] = "noreply@genaigov.ai"
     # CORS
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = ["*"]
 
     # S3 Media Storage
     S3_ENDPOINT_URL: str
