@@ -2,6 +2,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import  ConfigDict
 from typing import List, Optional
+from pydantic import AnyHttpUrl
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "LagTALK API"
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     RESEND_API_KEY: Optional[str] = None
     RESEND_FROM_EMAIL: Optional[str] = "noreply@genaigov.ai"
     # CORS
-    BACKEND_CORS_ORIGINS: list[str] = ["*"]
+    BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = ["http://localhost:3000"]
 
     # S3 Media Storage
     S3_ENDPOINT_URL: str
