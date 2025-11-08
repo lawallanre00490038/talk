@@ -32,10 +32,11 @@ from app.schemas.auth import (
 from app.db.models import StudentProfile, User, Institution, UserRole
 from app.core.config import settings
 from app.utils.resend_email import MailService
+import resend
 
 router = APIRouter()
 user_service = UserService()
-mail_service = MailService(resend=None, settings=settings)  # resend client injected later
+mail_service = MailService(resend=resend, settings=settings)  # resend client injected later
 
 
 # ==============================
