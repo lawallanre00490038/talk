@@ -45,6 +45,7 @@ logger.addHandler(file_handler)
 allowed_origins = [
     "http://localhost:3000",
     "talk-lgsa.onrender.com",
+    "https://campus-talk-frontend.vercel.app/"
 ]
 
 
@@ -131,6 +132,7 @@ def register_middleware(app: FastAPI):
         "127.0.0.1",
         "0.0.0.0",
         "talk-lgsa.onrender.com",
+        "campus-talk-frontend.vercel.app"
     ])
 
 
