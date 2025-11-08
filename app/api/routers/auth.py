@@ -473,6 +473,26 @@ async def reset_password_redirect(
 
 
 
+@router.delete("/delete-user", response_model=DeleteResponseModel)
+async def delete_user(
+    current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
+    response: Response,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    user_service = UserService()
+    try:
+        await user_service.delete_user(current_user, session)
+        response.delete_cookie(key="access_token")
+    except Exception as e:
+        raise e
+
+    return DeleteResponseModel(
+        status=True,
+        message="User account deleted successfully and access token cleared",
+    )
+ 
+
+
 
 
 async def validate(user_data: dict, request:  Optional[Request] = None , response: Optional[Response] = None, session: Optional[AsyncSession] = None):
