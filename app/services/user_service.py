@@ -74,12 +74,13 @@ class UserService:
           
 
           new_user = User(
-              full_name=user_data.full_name,
-              email=user_data.email,
-              password=hash_password,
-              is_verified=False if not is_google else True,
-              verification_token = verification_token if not is_google else None,
-              role = UserRole.GENERAL
+            username=user_data.username,
+            full_name=user_data.username,
+            email=user_data.email,
+            hashed_password=hash_password,
+            is_verified=False if not is_google else True,
+            verification_token = verification_token if not is_google else None,
+            role = UserRole.GENERAL
           )
 
           session.add(new_user)
@@ -94,6 +95,7 @@ class UserService:
         except Exception as e:
             await session.rollback()
             raise e
+
 
     async def verify_token(self, token: str, session: AsyncSession) -> User:
         """Verify the token and retrieve the associated user."""
@@ -112,6 +114,8 @@ class UserService:
                 message="The user with this token does not exist"
             )
         return user
+
+
 
     async def authenticate_user(
         self, email: str, password: str, session: AsyncSession

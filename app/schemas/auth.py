@@ -17,12 +17,14 @@ class AdminCreate(UserBase):
     password: str
     role: Optional[UserRole] = UserRole.ADMIN
 
+
 class UserCreateGeneralModel(BaseModel):
     full_name: Optional[str] = None
     username: Optional[str] = None
     email:  Optional[EmailStr] = None
     role: Optional[UserRole] = UserRole.GENERAL
     password: str
+
 
     model_config = {
         "json_schema_extra": {
@@ -129,6 +131,7 @@ class ResetPasswordSchemaResponseModel(BaseModel):
             }
         }
     }
+
 
 
 

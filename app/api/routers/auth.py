@@ -1,13 +1,15 @@
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Response, BackgroundTasks, Query
+from typing import Annotated, Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Response, BackgroundTasks, Query
 from datetime import timedelta
+from sqlalchemy import select
 import uuid
+import jwt
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.user_service import UserService
 from app.utils.fastapi_email import EmailSchema, schedule_email
-from app.errors import EmailAlreadyVerified
+from app.errors import EmailAlreadyVerified, InvalidToken, UserLoggedOut
 from app.core.auth import (
     create_access_token,
     get_current_user_dependency,
@@ -18,7 +20,12 @@ from app.core.auth import (
 from app.db.session import get_session, logger
 from app.db.repositories.user_repo import institution_repo, student_profile_repo, user_repo
 from app.schemas.auth import (
+    DeleteResponseModel,
+    ForgotPasswordModel,
+    GetTokenRequest,
     InstitutionProfileRead,
+    ResetPasswordModel,
+    ResetPasswordSchemaResponseModel,
     StudentProfileRead,
     TokenUser,
     UserCreateGeneralModel,
@@ -27,7 +34,8 @@ from app.schemas.auth import (
     UserCreateRead,
     UserCreateStudentModel,
     UserLoginModel,
-    LoginResponseModel
+    LoginResponseModel,
+    VerificationMailSchemaResponse
 )
 from app.db.models import StudentProfile, User, Institution, UserRole
 from app.core.config import settings
@@ -67,6 +75,14 @@ async def register_user(
     Returns:
         RegisterResponseModel: Status, message, and created user data.
     """
+    stmt = select(User).where(User.username == user_in.username)
+    existing_user = await session.execute(stmt)
+    if existing_user.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already exists"
+        )
+
     db_user = await user_repo.get_by_email(session, email=user_in.email)
     if db_user:
         raise HTTPException(
@@ -229,7 +245,7 @@ async def create_student_profile(
     if not current_user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email not verified."
+            detail="Email not verified. Please kindly verify your email before creating a student profile."
         )
 
     if current_user.role == UserRole.INSTITUTION:
@@ -305,7 +321,7 @@ async def create_institution_profile(
     if not current_user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email not verified."
+            detail="Email not verified. Please kindly verify your email before creating an institution profile."
         )
 
     if current_user.role == UserRole.STUDENT:
@@ -342,3 +358,156 @@ async def create_institution_profile(
         message="Institution profile created successfully",
         data=InstitutionProfileRead.model_validate(created_institution)
     )
+
+
+
+@router.post("/logout", response_model=DeleteResponseModel)
+async def logout(
+    request: Request,
+    response: Response,
+    session: Annotated[AsyncSession, Depends(get_session)]
+):
+    """Logout user and clear access token."""
+    # Clear the access token cookie
+    # check if the cookie exists
+    if "access_token" not in request.cookies:
+        raise UserLoggedOut()
+    response.delete_cookie(key="access_token", samesite="none", secure=True)
+    return DeleteResponseModel(
+        status=True,
+        message="Logout successful",
+    )
+
+
+
+@router.get("/users/me", response_model=TokenUser)
+async def read_users_me(
+    current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))]
+):
+    """Get details of the current user."""
+    return current_user
+
+
+
+@router.post("/google-token", response_model=LoginResponseModel, include_in_schema=True)
+async def token(
+    form_data: GetTokenRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
+    response: Response,
+):
+    """
+        This is responsible for exchanging the google code for an access token and validating the token.
+        Send the user data to the user and sets access token in cookies.
+    """
+    print("The code is", form_data.code)
+    google_token = form_data.code
+
+    try:
+        user_data = jwt.decode(google_token, options={"verify_signature": False})
+        print("The decoded token is", user_data)
+    
+    except jwt.ExpiredSignatureError:
+        raise InvalidToken()
+
+    response = await validate(user_data, request, response, session)
+    return response
+   
+
+# resend verification token
+@router.post("/resend-verification-token", response_model=VerificationMailSchemaResponse)
+async def resend_verification_token(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    response: Response,
+    email: str = Query(..., description="Email of the user to resend verification token"),
+):
+    """Resend the verification token to the user's email."""
+    user_service = UserService()
+    response = await user_service.resend_verification_email(email, session)
+
+    return response
+
+
+# Reset password
+@router.post("/forgot-password")
+async def forgot_password(
+    payload: ForgotPasswordModel,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Reset the password for the user."""
+    user_service = UserService()
+    response = await user_service.forgot_password(payload, session)
+    return response
+
+
+
+@router.post("/reset-password/", response_model=ResetPasswordSchemaResponseModel)
+async def reset_password_redirect(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    payload: ResetPasswordModel,
+    token: str = Query(..., description="Verification token from email"),
+):
+    """Verify user's email using the provided token."""
+    
+    # Initialize UserService instance
+    user_service = UserService()
+    
+    # Retrieve user based on the verification token
+    user = await user_service.verify_token(token, session)
+    
+    if not user:
+        raise InvalidToken()
+    
+    # Update user verification status
+    user.is_verified = True
+    user.verification_token = None
+    
+    # Commit changes to the database
+    await session.commit()
+    await session.refresh(user)
+    
+    #  Reset the password
+    response = await user_service.reset_password(user, payload, session)
+            
+    return response
+
+
+
+
+
+async def validate(user_data: dict, request:  Optional[Request] = None , response: Optional[Response] = None, session: Optional[AsyncSession] = None):
+    print("The user data from the Google payload:", user_data)
+    user_service = UserService()
+    email = user_data.get("email")
+    print("Checking for user with email:", email)
+
+    try:
+        user = await user_service.get_user_by_email(email, session)
+        print("User exists:", user)
+    
+        if user is None:
+            print("User not found. Creating new user...")
+
+            user_model = UserCreateGeneralModel(
+                full_name=user_data.get("name"),
+                username=user_data.get("email").split("@")[0],
+                email=user_data.get("email"),
+                password="password"  # Dummy password since Google handles authentication
+            )
+
+            user = await user_service.create_user(user_model, session, is_google=True)
+            print("User created successfully:", user)
+
+
+    except Exception as e:
+        print("Unexpected error:", e)
+        raise e
+
+    # Now generate the access token
+    access_token_expires = timedelta(minutes=300)
+    print("Creating access token for user:", user)
+    access_token = create_access_token(settings=settings, user=user, expires_delta=access_token_expires)
+
+
+    result = verify_email_response(user, access_token, response)
+    return result
