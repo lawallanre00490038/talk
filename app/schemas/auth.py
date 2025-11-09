@@ -20,7 +20,6 @@ class AdminCreate(UserBase):
 
 class UserCreateGeneralModel(BaseModel):
     full_name: Optional[str] = None
-    username: Optional[str] = None
     email:  Optional[EmailStr] = None
     role: Optional[UserRole] = UserRole.GENERAL
     password: str
@@ -29,7 +28,6 @@ class UserCreateGeneralModel(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "username": "johndoe123",
                 "full_name": "John Doe",
                 "email": "johndoe123@co.com",
                 "role": "general",
@@ -90,14 +88,12 @@ class UserCreateInstitutionModel(BaseModel):
 
 class UserLoginModel(BaseModel):
     email: Optional[EmailStr] = None
-    username: str
     password: str
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "email": "johndoe123@co.com",
-                "username": "johndoe123",
                 "password": "testpass123",
             }
         }

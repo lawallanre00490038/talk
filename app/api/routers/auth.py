@@ -62,7 +62,6 @@ async def register_user(
     Steps:
     1. Check if the email already exists in the database.
     2. Hash the user’s password.
-    3. Generate a username if not provided.
     4. Create a unique verification token.
     5. Save the user to the database.
     6. Send verification email in the background.
@@ -91,7 +90,7 @@ async def register_user(
         )
 
     hashed_password = generate_passwd_hash(user_in.password)
-    username = user_in.username or user_in.email.split("@")[0]
+    username = user_in.full_name.lower().split()[0] or user_in.email.split("@")[0]
     verification_token = str(uuid.uuid4())
 
     user_obj = User(
@@ -156,7 +155,8 @@ async def login_for_access_token(
     Returns:
         LoginResponseModel: Access token and user info.
     """
-    user = await user_repo.get_by_username(session, username=form_data.username)
+    user = await user_repo.get_by_email(session, email=form_data.email)
+
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
