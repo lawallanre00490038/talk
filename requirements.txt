@@ -21,3 +21,6 @@ resend
 bcrypt==4.0.1
 PyJWT
 boto3
+ython-dotenv
+
+cloudinary
