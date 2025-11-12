@@ -354,7 +354,7 @@ async def create_institution_profile(
 
     # Check if institution profile already exists. do a direct query to the iinstitutionProfile table
     result = await select(InstitutionProfile).where(InstitutionProfile.user_id == current_user.id)
-    db_user = result.scalar_one_or_none()
+    db_user = result.scalars().first()
 
     if db_user:
         raise HTTPException(
