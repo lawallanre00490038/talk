@@ -39,47 +39,38 @@ class UserCreateGeneralModel(BaseModel):
 class UserCreateStudentModel(BaseModel):
     # Student Profile
     
-    institution_name: Optional[str] = None
-    institution_id: Optional[str] = None
-
+    institution_id: str
+    institution_name: str
     matric_number: Optional[str] = None
     faculty: Optional[str] = None
     department: Optional[str] = None
-    profile_picture: Optional[str] = None
     educational_level: Optional[str] = None
-    course: Optional[str] = None
 
     model_config = {
         "json_schema_extra": {
             "example": {
+                "institution_id": "unilag",
+                "institution_name": "University of Lagos",
                 "matric_number": "150150150FG",
-                "institution_name": "XYZ University",
-                "institution_id": "xyz-university-123",
                 "faculty": "Faculty of Science and Technology",
                 "department": "Department of Computer Science",
-                "profile_picture": "https://example.com/profile_picture.jpg",
                 "educational_level": "Undergraduate",
-                "course": "Computer Science",
             }
         }
     }
 
-class UserCreateInstitutionModel(BaseModel):
+class UserCreateInstitutionProfileModel(BaseModel):
     # Institution Profile
+    institution_id: str
     institution_name: Optional[str] = None
     institution_email: Optional[EmailStr] = None
-    institution_website: Optional[str] = None
-    institution_location: Optional[str] = None
-    institution_description: Optional[str] = None
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "institution_name": "XYZ University",
+                "institution_id": "unilag",
+                "institution_name": "University of Lagos",
                 "institution_email": "xyzuniversity@co.com",
-                "institution_website": "www.xyzuniversity.com",
-                "institution_location": "123 Main St, Anytown USA",
-                "institution_description": "XYZ University is a leading university in the field of Computer Science and Engineering.",
             }
         }
     }
@@ -165,6 +156,7 @@ class UserCreateRead(BaseModel):
     email: EmailStr
     role: Optional[str] = "user"
     verification_token: Optional[str] = None
+    profile_picture: Optional[str] = None
     is_verified: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -183,11 +175,9 @@ class StudentProfileRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class InstitutionProfileRead(BaseModel):
+    id: Optional[str] = None
     institution_name: Optional[str] = None
-    institution_description: Optional[str] = None
     institution_email: Optional[EmailStr] = None
-    institution_website: Optional[str] = None
-    institution_location: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

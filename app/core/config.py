@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str
 
+    CLOUDINARY_CLOUD_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
+
     RESEND_API_KEY: Optional[str] = None
     RESEND_FROM_EMAIL: Optional[str] = "noreply@genaigov.ai"
     # CORS

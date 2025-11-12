@@ -1,15 +1,15 @@
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Response, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status, Response, BackgroundTasks, Query
 from datetime import timedelta
-from sqlalchemy import select
-import uuid
-import jwt
+import cloudinary
+import cloudinary.uploader
+import uuid, jwt, random
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.services.user_service import UserService
-from app.utils.fastapi_email import EmailSchema, schedule_email
-from app.errors import EmailAlreadyVerified, InvalidToken, UserLoggedOut
+from app.errors import EmailAlreadyVerified, InvalidToken, UnAuthenticated, UserLoggedOut
 from app.core.auth import (
     create_access_token,
     get_current_user_dependency,
@@ -29,18 +29,18 @@ from app.schemas.auth import (
     StudentProfileRead,
     TokenUser,
     UserCreateGeneralModel,
-    UserCreateInstitutionModel,
     RegisterResponseModel,
+    UserCreateInstitutionProfileModel,
     UserCreateRead,
     UserCreateStudentModel,
     UserLoginModel,
     LoginResponseModel,
     VerificationMailSchemaResponse
 )
-from app.db.models import StudentProfile, User, Institution, UserRole
+from app.db.models import InstitutionProfile, StudentProfile, User, Institution, UserRole
 from app.core.config import settings
 from app.utils.resend_email import MailService
-import resend
+import resend, os
 
 router = APIRouter()
 user_service = UserService()
@@ -83,12 +83,12 @@ async def register_user(
         )
 
     hashed_password = generate_passwd_hash(user_in.password)
-    username = user_in.full_name.lower().split()[0] or user_in.email.split("@")[0]
-    verification_token = str(uuid.uuid4())
+
+    verification_token = f"{random.randint(1000, 9999)}"
+    print("\n\n\nVerification token generated:", verification_token)
 
     user_obj = User(
         email=user_in.email,
-        username=username,
         full_name=user_in.full_name,
         verification_token=verification_token,
         hashed_password=hashed_password
@@ -113,7 +113,7 @@ async def register_user(
     # schedule_email(bg_tasks, email_data)
 
     # Send verification email in the background
-    bg_tasks.add_task(mail_service.send_verification_email, user_obj.email, str(user_obj.full_name), verification_token)
+    bg_tasks.add_task(mail_service.send_verification_email, created_user.email, str(created_user.full_name), verification_token)
 
     return RegisterResponseModel(
         status=True,
@@ -122,44 +122,7 @@ async def register_user(
     )
 
 
-# ==============================
-# USER LOGIN ENDPOINT
-# ==============================
-@router.post("/login", response_model=LoginResponseModel)
-async def login_for_access_token(
-    form_data: UserLoginModel,
-    response: Response,
-    session: AsyncSession = Depends(get_session),
-):
-    """
-    Authenticate a user and provide an access token.
 
-    Steps:
-    1. Retrieve the user by username.
-    2. Verify the password.
-    3. Generate JWT access token.
-    4. Return the token along with email verification check.
-
-    Args:
-        form_data (UserLoginModel): Input model containing username and password.
-        response (Response): FastAPI response object to attach cookies or headers.
-        session (AsyncSession): SQLAlchemy async session.
-
-    Returns:
-        LoginResponseModel: Access token and user info.
-    """
-    user = await user_repo.get_by_email(session, email=form_data.email)
-
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(user=user, expires_delta=access_token_expires)
-    return verify_email_response(user=user, access_token=access_token, response=response)
 
 
 # ==============================
@@ -204,10 +167,76 @@ async def verify_email(
     return response
 
 
+
+
+
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+)
+
+@router.post("/profile/picture", response_model=LoginResponseModel)
+async def upload_profile_picture(
+    current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
+    session: AsyncSession = Depends(get_session),
+    file: UploadFile = File(...),
+):
+    allowed_extensions = ["jpg", "jpeg", "png"]
+    file_extension = file.filename.split(".")[-1].lower()
+
+    if file_extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only jpg, jpeg, and png are allowed."
+        )
+
+    # Upload file to Cloudinary
+    try:
+        upload_result = cloudinary.uploader.upload(
+            file.file,
+            folder="profile_pictures",
+            public_id=f"{current_user.id}_{file.filename.split('.')[0]}"
+        )
+        image_url = upload_result.get("secure_url")
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image upload failed: {str(e)}"
+        )
+
+    # Update user's profile picture in DB
+    user = await user_repo.get_by_email(session, email=current_user.email)
+    user.profile_picture = image_url
+    await session.commit()
+    await session.refresh(user)
+
+    return LoginResponseModel(
+        status=True,
+        message="Profile picture uploaded successfully",
+        data=UserCreateRead.model_validate(user)
+    )
+
+
+
+
+# Get all institutions
+@router.get("/institutions", response_model=list[Institution])
+async def get_institutions(
+    session: Annotated[AsyncSession, Depends(get_session)]
+):
+    """Get a list of all institutions."""
+    result = await session.execute(select(Institution))
+    institutions = result.scalars().all()
+    return [institution for institution in institutions]
+
+
+
 # ==============================
 # CREATE STUDENT PROFILE ENDPOINT
 # ==============================
-@router.post("/create_student_profile", response_model=LoginResponseModel)
+@router.post("/profile/student", response_model=LoginResponseModel)
 async def create_student_profile(
     student_profile_in: UserCreateStudentModel,
     current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
@@ -253,22 +282,20 @@ async def create_student_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Student profile already exists."
         )
-
+    
     student_obj = StudentProfile(
         user_id=current_user.id,
-        institution_name=student_profile_in.institution_name,
         institution_id=student_profile_in.institution_id,
-        profile_picture=student_profile_in.profile_picture,
+        institution_name=student_profile_in.institution_name,
         matric_number=student_profile_in.matric_number,
         faculty=student_profile_in.faculty,
-        department=student_profile_in.department,
         educational_level=student_profile_in.educational_level,
-        course=student_profile_in.course
     )
     created_student = await student_profile_repo.create(session, obj_in=student_obj)
 
     user = await user_repo.get_by_email(session, email=current_user.email)
     user.role = UserRole.STUDENT
+    student_obj.profile_picture = user.profile_picture or None
     await session.commit()
 
     logger.info(f"Created student {created_student.id}")
@@ -280,12 +307,14 @@ async def create_student_profile(
     )
 
 
+
+
 # ==============================
 # CREATE INSTITUTION PROFILE ENDPOINT
 # ==============================
-@router.post("/create_institution_profile", response_model=LoginResponseModel)
+@router.post("/profile/institution", response_model=LoginResponseModel)
 async def create_institution_profile(
-    institution_profile_in: UserCreateInstitutionModel,
+    institution_profile_in: UserCreateInstitutionProfileModel,
     current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
     session: AsyncSession = Depends(get_session),
 ):
@@ -330,18 +359,18 @@ async def create_institution_profile(
             detail="Institution profile already exists."
         )
 
-    institution_obj = Institution(
+    institution_obj = InstitutionProfile(
         user_id=current_user.id,
+        institution_id= institution_profile_in.institution_id,
         institution_name=institution_profile_in.institution_name,
-        institution_email=institution_profile_in.institution_email or current_user.email,
-        institution_description=institution_profile_in.institution_description,
-        institution_website=institution_profile_in.institution_website,
-        institution_location=institution_profile_in.institution_location,
+        institution_email=institution_profile_in.institution_email
     )
     created_institution = await institution_repo.create(session, obj_in=institution_obj)
 
     user = await user_repo.get_by_email(session, email=current_user.email)
+
     user.role = UserRole.INSTITUTION
+    institution_obj.profile_picture = user.profile_picture or None
     await session.commit()
 
     logger.info(f"Created institution {created_institution.id}")
@@ -351,6 +380,48 @@ async def create_institution_profile(
         message="Institution profile created successfully",
         data=InstitutionProfileRead.model_validate(created_institution)
     )
+
+
+
+# ==============================
+# USER LOGIN ENDPOINT
+# ==============================
+@router.post("/login", response_model=LoginResponseModel)
+async def login_for_access_token(
+    form_data: UserLoginModel,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Authenticate a user and provide an access token.
+
+    Steps:
+    1. Retrieve the user by username.
+    2. Verify the password.
+    3. Generate JWT access token.
+    4. Return the token along with email verification check.
+
+    Args:
+        form_data (UserLoginModel): Input model containing username and password.
+        response (Response): FastAPI response object to attach cookies or headers.
+        session (AsyncSession): SQLAlchemy async session.
+
+    Returns:
+        LoginResponseModel: Access token and user info.
+    """
+    user = await user_repo.get_by_email(session, email=form_data.email)
+
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    return verify_email_response(user=user, access_token=access_token, response=response)
+
 
 
 
@@ -366,6 +437,7 @@ async def logout(
     if "access_token" not in request.cookies:
         raise UserLoggedOut()
     response.delete_cookie(key="access_token", samesite="none", secure=True)
+
     return DeleteResponseModel(
         status=True,
         message="Logout successful",
@@ -378,7 +450,10 @@ async def read_users_me(
     current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))]
 ):
     """Get details of the current user."""
-    return current_user
+    try:
+        return current_user
+    except UnAuthenticated:
+        raise UserLoggedOut()
 
 
 

@@ -80,6 +80,9 @@ class MailService:
                                 <p style="text-align: center;">
                                     <a href="{verification_link}" class="button">Verify Your Email</a>
                                 </p>
+                                 <p style="text-align: center; font-size: 14px; color: #555;">
+                                    {verification_token}
+                                </p>
                                 <p>If you did not create an account, you can safely ignore this email.</p>
                                 <p>Welcome aboard!</p>
                                 <p>Best regards,<br>The CampusTALK Team</p>

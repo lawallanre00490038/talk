@@ -1,9 +1,11 @@
+import profile
 import uuid
 import enum
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import Column, JSON, Enum, DateTime
+from sqlalchemy.sql.functions import user
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -81,7 +83,8 @@ class User(SQLModel, table=True):
     )
 
     student_profile: Optional["StudentProfile"] = Relationship(back_populates="user")
-    institution_profile: Optional["Institution"] = Relationship(back_populates="user")
+    institution_profile: Optional["InstitutionProfile"] = Relationship(back_populates="user")
+
     posts: List["Post"] = Relationship(back_populates="author")
     comments: List["Comment"] = Relationship(back_populates="author")
     likes: List["Like"] = Relationship(back_populates="user")
@@ -90,6 +93,9 @@ class User(SQLModel, table=True):
     
     communities: List["Community"] = Relationship(back_populates="members", link_model=UserCommunityLink)
     channels: List["Channel"] = Relationship(back_populates="members", link_model=UserChannelLink)
+
+
+
 
 
 class StudentProfile(SQLModel, table=True):
@@ -110,18 +116,35 @@ class StudentProfile(SQLModel, table=True):
     institution: Optional["Institution"] = Relationship(back_populates="students")
 
 
+
 class Institution(SQLModel, table=True):
     id: str = Field(default_factory=generate_uuid, primary_key=True)
-    user_id: str = Field(foreign_key="user.id", unique=True, nullable=True)
-
-    institution_email: str = Field(unique=True, index=True)
+    institution_email: Optional[str] = Field(unique=True, index=True, default=None)
+    institution_profile_picture: Optional[str] = None
     institution_name: str = Field(unique=True, index=True)
     institution_description: Optional[str] = None
     institution_website: Optional[str] = None
     institution_location: Optional[str] = None
-    
-    user: Optional[User] = Relationship(back_populates="institution_profile")
+
     students: List["StudentProfile"] = Relationship(back_populates="institution")
+    institution_profiles: List["InstitutionProfile"] = Relationship(back_populates="institution")
+
+
+
+class InstitutionProfile(SQLModel, table=True):
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="user.id", unique=True)
+    institution_id: str = Field(foreign_key="institution.id", unique=True)
+    profile_picture: Optional[str] = None
+
+    institution_name: str
+    institution_email: str
+
+    user: User = Relationship(back_populates="institution_profile")
+    institution: Institution = Relationship(back_populates="institution_profiles")
+
+
+
 
 
 class Community(SQLModel, table=True):
