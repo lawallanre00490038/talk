@@ -1,3 +1,4 @@
+import random
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any, Optional
@@ -162,7 +163,7 @@ class UserService:
             )
 
         # Generate and assign a new reset token
-        reset_token = str(uuid.uuid4())
+        reset_token = f"{random.randint(1000, 9999)}"
         user.verification_token = reset_token
 
         session.add(user)
