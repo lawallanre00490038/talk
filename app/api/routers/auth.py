@@ -352,33 +352,40 @@ async def create_institution_profile(
             detail="Student cannot create institution profile."
         )
 
-    db_user = await institution_repo.get_by_user_id(session, user_id=current_user.id)
+    # Check if institution profile already exists. do a direct query to the iinstitutionProfile table
+    result = await select(InstitutionProfile).where(InstitutionProfile.user_id == current_user.id)
+    db_user = result.scalar_one_or_none()
+
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Institution profile already exists."
         )
 
-    institution_obj = InstitutionProfile(
+    institution_obj_profile = InstitutionProfile(
         user_id=current_user.id,
         institution_id= institution_profile_in.institution_id,
         institution_name=institution_profile_in.institution_name,
         institution_email=institution_profile_in.institution_email
     )
-    created_institution = await institution_repo.create(session, obj_in=institution_obj)
 
+
+    # Attach profile picture if user has one
     user = await user_repo.get_by_email(session, email=current_user.email)
-
     user.role = UserRole.INSTITUTION
-    institution_obj.profile_picture = user.profile_picture or None
-    await session.commit()
+    institution_obj_profile.profile_picture = user.profile_picture or None
 
-    logger.info(f"Created institution {created_institution.id}")
+    # Add and commit
+    session.add(institution_obj_profile)
+    await session.commit()
+    await session.refresh(institution_obj_profile)
+
+    logger.info(f"Created institution {institution_obj_profile.id}")
 
     return LoginResponseModel(
         status=True,
         message="Institution profile created successfully",
-        data=InstitutionProfileRead.model_validate(created_institution)
+        data=InstitutionProfileRead.model_validate(institution_obj_profile)
     )
 
 
