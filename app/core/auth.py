@@ -82,11 +82,15 @@ def get_current_user_dependency(settings: BaseSettings):
         request: Request,
         token: Optional[str] = Depends(optional_oauth2_scheme),
     ) -> TokenUser:
+
+        
         access_token = token or request.cookies.get("access_token")
 
         if not access_token:
-            raise UnAuthenticated(
-                message="You are not authenticated. Please login to continue"
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You are not authenticated. Please login to continue",
+                headers={"WWW-Authenticate": "Bearer"},
             )
 
         try:

@@ -458,10 +458,7 @@ async def read_users_me(
     current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))]
 ):
     """Get details of the current user."""
-    try:
-        return current_user
-    except UnAuthenticated:
-        raise UserLoggedOut()
+    return current_user
 
 
 
