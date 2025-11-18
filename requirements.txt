@@ -28,6 +28,6 @@ cloudinary
 
 
 
-sentence-transformers 
-langchain-huggingface 
-langchain-groq
+# sentence-transformers 
+# langchain-huggingface 
+# langchain-groq
