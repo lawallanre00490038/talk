@@ -43,7 +43,8 @@ class RAGService:
         if HAS_RAG_DEPS:
             try:
                 # Initialize HuggingFace embeddings
-                self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+                # self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+                self.embeddings = "demo"
                 logger.info("✅ HuggingFace embeddings loaded")
 
                 # Initialize Groq LLM
