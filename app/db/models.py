@@ -3,10 +3,10 @@ import uuid
 import enum
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-
+import sqlalchemy as sa
 from sqlalchemy import Column, JSON, Enum, DateTime
 from sqlalchemy.sql.functions import user
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel, func
 
 
 class UserRole(str, enum.Enum):
@@ -58,6 +58,12 @@ class UserChannelLink(SQLModel, table=True):
     is_moderator: bool = Field(default=False)
 
 
+class ConversationUserLink(SQLModel, table=True):
+    user_id: str = Field(foreign_key="user.id", primary_key=True)
+    conversation_id: str = Field(foreign_key="conversation.id", primary_key=True)
+    is_muted: bool = Field(default=False)
+
+
 # Main Models
 class User(SQLModel, table=True):
     id: str = Field(default_factory=generate_uuid, primary_key=True, index=True)
@@ -82,17 +88,34 @@ class User(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), onupdate=datetime.now(timezone.utc))
     )
 
-    student_profile: Optional["StudentProfile"] = Relationship(back_populates="user")
-    institution_profile: Optional["InstitutionProfile"] = Relationship(back_populates="user")
+    student_profile: Optional["StudentProfile"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
+    institution_profile: Optional["InstitutionProfile"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
 
-    posts: List["Post"] = Relationship(back_populates="author")
-    comments: List["Comment"] = Relationship(back_populates="author")
-    likes: List["Like"] = Relationship(back_populates="user")
-    complaints_filed: List["Complaint"] = Relationship(sa_relationship_kwargs={'foreign_keys':'[Complaint.reporter_id]'})
-    notifications: List["Notification"] = Relationship(back_populates="user")
+    posts: List["Post"] = Relationship(back_populates="author", sa_relationship_kwargs={"lazy": "selectin"})
+    comments: List["Comment"] = Relationship(back_populates="author", sa_relationship_kwargs={"lazy": "selectin"})
+    likes: List["Like"] = Relationship(back_populates="user", sa_relationship_kwargs={"lazy": "selectin"})
+    complaints_filed: List["Complaint"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Complaint.reporter_id]", "lazy": "selectin"}
+    )
+    notifications: List["Notification"] = Relationship(back_populates="user", sa_relationship_kwargs={"lazy": "selectin"})
     
-    communities: List["Community"] = Relationship(back_populates="members", link_model=UserCommunityLink)
-    channels: List["Channel"] = Relationship(back_populates="members", link_model=UserChannelLink)
+    communities: List["Community"] = Relationship(
+        back_populates="members", link_model=UserCommunityLink, sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    channels: List["Channel"] = Relationship(
+        back_populates="members", link_model=UserChannelLink, sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    # Conversations (direct messages)
+    conversations: List["Conversation"] = Relationship(
+        back_populates="members", link_model=ConversationUserLink, sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    messages_sent: List["Message"] = Relationship(back_populates="sender", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 
@@ -112,8 +135,8 @@ class StudentProfile(SQLModel, table=True):
     course: Optional[str] = None
     graduation_year: Optional[int] = None
     
-    user: User = Relationship(back_populates="student_profile")
-    institution: Optional["Institution"] = Relationship(back_populates="students")
+    user: User = Relationship(back_populates="student_profile", sa_relationship_kwargs={"lazy": "selectin"})
+    institution: Optional["Institution"] = Relationship(back_populates="students", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 
@@ -126,22 +149,24 @@ class Institution(SQLModel, table=True):
     institution_website: Optional[str] = None
     institution_location: Optional[str] = None
 
-    students: List["StudentProfile"] = Relationship(back_populates="institution")
-    institution_profiles: List["InstitutionProfile"] = Relationship(back_populates="institution")
+    students: List["StudentProfile"] = Relationship(back_populates="institution", sa_relationship_kwargs={"lazy": "selectin"})
+    institution_profiles: List["InstitutionProfile"] = Relationship(back_populates="institution", sa_relationship_kwargs={"lazy": "selectin"})
+    student_resources: List["StudentResource"] = Relationship(back_populates="institution", sa_relationship_kwargs={"lazy": "selectin"})
+    uploaded_documents: List["UploadedDocument"] = Relationship(back_populates="institution", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 
 class InstitutionProfile(SQLModel, table=True):
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     user_id: str = Field(foreign_key="user.id", unique=True)
-    institution_id: str = Field(foreign_key="institution.id", unique=True)
+    institution_id: str = Field(foreign_key="institution.id")
     profile_picture: Optional[str] = None
 
     institution_name: str
     institution_email: str
 
-    user: User = Relationship(back_populates="institution_profile")
-    institution: Institution = Relationship(back_populates="institution_profiles")
+    user: User = Relationship(back_populates="institution_profile", sa_relationship_kwargs={"lazy": "selectin"})
+    institution: Institution = Relationship(back_populates="institution_profiles", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 
@@ -157,8 +182,8 @@ class Community(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True))
     )
 
-    members: List[User] = Relationship(back_populates="communities", link_model=UserCommunityLink)
-    posts: List["Post"] = Relationship(back_populates="community")
+    members: List[User] = Relationship(back_populates="communities", link_model=UserCommunityLink, sa_relationship_kwargs={"lazy": "selectin"})
+    posts: List["Post"] = Relationship(back_populates="community", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Channel(SQLModel, table=True):
@@ -169,8 +194,8 @@ class Channel(SQLModel, table=True):
     created_by: str = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    members: List[User] = Relationship(back_populates="channels", link_model=UserChannelLink)
-    posts: List["Post"] = Relationship(back_populates="channel")
+    members: List[User] = Relationship(back_populates="channels", link_model=UserChannelLink, sa_relationship_kwargs={"lazy": "selectin"})
+    posts: List["Post"] = Relationship(back_populates="channel", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Post(SQLModel, table=True):
@@ -188,12 +213,12 @@ class Post(SQLModel, table=True):
     community_id: Optional[str] = Field(foreign_key="community.id", default=None)
     channel_id: Optional[str] = Field(foreign_key="channel.id", default=None)
 
-    author: User = Relationship(back_populates="posts")
-    media: List["Media"] = Relationship(back_populates="post")
-    comments: List["Comment"] = Relationship(back_populates="post")
-    likes: List["Like"] = Relationship(back_populates="post")
-    community: Optional[Community] = Relationship(back_populates="posts")
-    channel: Optional[Channel] = Relationship(back_populates="posts")
+    author: User = Relationship(back_populates="posts", sa_relationship_kwargs={"lazy": "selectin"})
+    media: List["Media"] = Relationship(back_populates="post", sa_relationship_kwargs={"lazy": "selectin"})
+    comments: List["Comment"] = Relationship(back_populates="post", sa_relationship_kwargs={"lazy": "selectin"})
+    likes: List["Like"] = Relationship(back_populates="post", sa_relationship_kwargs={"lazy": "selectin"})
+    community: Optional[Community] = Relationship(back_populates="posts", sa_relationship_kwargs={"lazy": "selectin"})
+    channel: Optional[Channel] = Relationship(back_populates="posts", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Media(SQLModel, table=True):
@@ -207,7 +232,7 @@ class Media(SQLModel, table=True):
         default={}
     )
 
-    post: "Post" = Relationship(back_populates="media")
+    post: "Post" = Relationship(back_populates="media", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Comment(SQLModel, table=True):
@@ -221,9 +246,9 @@ class Comment(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True))
     )
 
-    author: User = Relationship(back_populates="comments")
-    post: Post = Relationship(back_populates="comments")
-    likes: List["Like"] = Relationship(back_populates="comment")
+    author: User = Relationship(back_populates="comments", sa_relationship_kwargs={"lazy": "selectin"})
+    post: Post = Relationship(back_populates="comments", sa_relationship_kwargs={"lazy": "selectin"})
+    likes: List["Like"] = Relationship(back_populates="comment", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Like(SQLModel, table=True):
@@ -237,9 +262,9 @@ class Like(SQLModel, table=True):
     )
 
 
-    user: User = Relationship(back_populates="likes")
-    post: Optional[Post] = Relationship(back_populates="likes")
-    comment: Optional[Comment] = Relationship(back_populates="likes")
+    user: User = Relationship(back_populates="likes", sa_relationship_kwargs={"lazy": "selectin"})
+    post: Optional[Post] = Relationship(back_populates="likes", sa_relationship_kwargs={"lazy": "selectin"})
+    comment: Optional[Comment] = Relationship(back_populates="likes", sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class Complaint(SQLModel, table=True):
@@ -255,6 +280,66 @@ class Complaint(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True))
     )
 
+
+class Conversation(SQLModel, table=True):
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    title: Optional[str] = None
+    is_group: bool = Field(default=False)
+    created_by: Optional[str] = Field(foreign_key="user.id", default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    members: List[User] = Relationship(back_populates="conversations", link_model=ConversationUserLink, sa_relationship_kwargs={"lazy": "selectin"})
+    messages: List["Message"] = Relationship(back_populates="conversation", sa_relationship_kwargs={"lazy": "selectin"})
+
+
+class Message(SQLModel, table=True):
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    conversation_id: str = Field(foreign_key="conversation.id", index=True)
+    sender_id: str = Field(foreign_key="user.id", index=True)
+    content: str
+    attachments: Dict[str, Any] = Field(sa_column=Column(JSON), default={})
+    is_read: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    conversation: Conversation = Relationship(back_populates="messages", sa_relationship_kwargs={"lazy": "selectin"})
+    sender: User = Relationship(back_populates="messages_sent", sa_relationship_kwargs={"lazy": "selectin"})
+
+
+class StudentResource(SQLModel, table=True):
+    """Resources and links exposed to students via a Student Portal (per institution)."""
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    institution_id: str = Field(foreign_key="institution.id", index=True)
+    title: str
+    description: Optional[str] = None
+    url: Optional[str] = None
+    resource_type: Optional[str] = None
+    created_by: Optional[str] = Field(foreign_key="user.id", default=None)
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=sa.Column(sa.DateTime(timezone=True))  # <--- correct way
+    )
+
+
+    institution: Institution = Relationship(back_populates="student_resources", sa_relationship_kwargs={"lazy": "selectin"})
+
+
+class UploadedDocument(SQLModel, table=True):
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    institution_id: str = Field(foreign_key="institution.id", index=True)
+    title: str
+    description: Optional[str] = None
+    file_url: str
+    file_metadata: Dict[str, Any] = Field(sa_column=Column(JSON), default={})
+    uploaded_by: Optional[str] = Field(foreign_key="user.id", default=None)
+    is_processed: bool = Field(default=False)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=sa.Column(sa.DateTime(timezone=True))  # <--- correct way
+    )
+
+    institution: Institution = Relationship(back_populates="uploaded_documents", sa_relationship_kwargs={"lazy": "selectin"})
+
 class Notification(SQLModel, table=True):
     id: str = Field(default_factory=generate_uuid, primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
@@ -266,7 +351,8 @@ class Notification(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True))
     )
 
-    user: User = Relationship(back_populates="notifications")
+    user: User = Relationship(back_populates="notifications", sa_relationship_kwargs={"lazy": "selectin"})
+
 
 # Models for analysis and metrics (could be in a separate DB/service in a larger system)
 class Sentiment(SQLModel, table=True):

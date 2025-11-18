@@ -14,6 +14,7 @@ pytest
 httpx
 pytest-asyncio
 fastapi-mail==1.5.8
+langchain
 
 # Auth
 passlib
@@ -24,3 +25,9 @@ boto3
 python-dotenv
 
 cloudinary
+
+
+
+sentence-transformers 
+langchain-huggingface 
+langchain-groq

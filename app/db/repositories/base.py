@@ -10,8 +10,10 @@ class BaseRepository(Generic[ModelType]):
     def __init__(self, model: Type[ModelType]):
         self.model = model
 
-    async def get(self, session: AsyncSession, id: str) -> Optional[ModelType]:
-        result = await session.get(self.model, id)
+    async def get(self, session: AsyncSession, id: str, *, options: list | None = None) -> Optional[ModelType]:
+        """Retrieve an instance by primary key. Accepts optional loader options (e.g., selectinload)."""
+        opts = options or []
+        result = await session.get(self.model, id, options=opts)
         return result
 
     async def create(self, session: AsyncSession, *, obj_in: SQLModel) -> ModelType:

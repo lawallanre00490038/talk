@@ -1,5 +1,6 @@
 import random
 from sqlmodel import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any, Optional
 import resend
@@ -39,7 +40,7 @@ class UserService:
         self, email: str, session: AsyncSession
     ) -> Optional[User]:
         """Retrieve a user by their email address."""
-        statement = select(User).where(User.email == email)
+        statement = select(User).where(User.email == email).options(selectinload(User.student_profile), selectinload(User.institution_profile))
         user = await session.execute(statement)
         user = user.scalar_one_or_none()
         if not user:
@@ -106,7 +107,7 @@ class UserService:
           )
         
         result = await session.execute(
-            select(User).where(User.verification_token == token)
+            select(User).where(User.verification_token == token).options(selectinload(User.student_profile), selectinload(User.institution_profile))
         )
 
         user = result.scalars().first()
@@ -223,7 +224,7 @@ class UserService:
                     raise EmailAlreadyVerified(
                         message="The email is already verified."
                     )
-                verification_token = str(uuid.uuid4())
+                verification_token = f"{random.randint(1000, 9999)}"
                 user.verification_token = verification_token
                 session.add(user)
                 await session.commit()

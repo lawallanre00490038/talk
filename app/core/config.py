@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # Rate Limiting
     REDIS_URL: str
 
+    # RAG / LLM
+    GROQ_API_KEY: Optional[str] = None
+    HF_API_KEY: Optional[str] = None
+
     # Grafana (for docker-compose)
     GF_SECURITY_ADMIN_USER: str = "admin"
     GF_SECURITY_ADMIN_PASSWORD: str = "grafana"

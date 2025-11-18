@@ -20,6 +20,9 @@ from app.api.routers import (
     complaints,
     notifications,
     admin,
+    messages,
+    student_portal,
+    institutions,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +47,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
+
 # Prometheus Metrics Integration
 Instrumentator().instrument(app).expose(app)
 
@@ -67,6 +71,9 @@ app.include_router(channels.router, prefix=f"{api_prefix}/channels", tags=["Chan
 app.include_router(communities.router, prefix=f"{api_prefix}/communities", tags=["Communities"])
 app.include_router(complaints.router, prefix=f"{api_prefix}/complaints", tags=["Complaints"])
 app.include_router(notifications.router, prefix=f"{api_prefix}/notifications", tags=["Notifications"])
+app.include_router(messages.router, prefix=f"{api_prefix}/messages", tags=["Messages"])
+app.include_router(student_portal.router, prefix=f"{api_prefix}/student-portal", tags=["Student Portal"])
+app.include_router(institutions.router, prefix=f"{api_prefix}/institutions", tags=["Institutions"])
 
 
 
@@ -92,4 +99,4 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=10000, reload=True)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

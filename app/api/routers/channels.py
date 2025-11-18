@@ -67,6 +67,8 @@ async def join_channel(
     await session.commit()
     return
 
+
+
 @router.get("/{channel_id}/posts", response_model=List[PostPublic])
 async def get_posts_in_channel(
     channel_id: str,

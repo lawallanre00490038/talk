@@ -5,6 +5,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
+from sqlalchemy.orm import selectinload
 from app.core.auth import get_current_user_dependency
 from app.db.models import User, Comment, Post
 from app.schemas.auth import TokenUser
@@ -50,7 +51,7 @@ async def create_comment(
 @router.get("/", response_model=List[Comment])
 async def read_comments(
     *,
-    session: AsyncSession = Depends(get_current_user_dependency(settings=settings)),
+    session: AsyncSession = Depends(get_session),
     post_id: str,
     pagination: pagination_params = Depends()
 ):

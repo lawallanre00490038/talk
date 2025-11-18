@@ -18,7 +18,7 @@ from app.core.auth import (
     generate_passwd_hash
 )
 from app.db.session import get_session, logger
-from app.db.repositories.user_repo import institution_repo, student_profile_repo, user_repo
+from app.db.repositories.user_repo import  student_profile_repo, user_repo
 from app.schemas.auth import (
     DeleteResponseModel,
     ForgotPasswordModel,
@@ -52,6 +52,7 @@ mail_service = MailService(resend=resend, settings=settings)  # resend client in
 # ==============================
 @router.post("/register", response_model=RegisterResponseModel, status_code=status.HTTP_201_CREATED)
 async def register_user(
+    request: Request,
     user_in: UserCreateGeneralModel,
     bg_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session)
@@ -240,6 +241,7 @@ async def get_institutions(
 async def create_student_profile(
     student_profile_in: UserCreateStudentModel,
     current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ):
     """
@@ -295,6 +297,15 @@ async def create_student_profile(
 
     user = await user_repo.get_by_email(session, email=current_user.email)
     user.role = UserRole.STUDENT
+    session.add(user)       # <-- make sure SQLAlchemy tracks this change
+    await session.commit()  # <-- persist it to DB
+    await session.refresh(user)
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    response = verify_email_response(user, new_access_token, response)
+
+
     student_obj.profile_picture = user.profile_picture or None
     await session.commit()
 
@@ -316,6 +327,7 @@ async def create_student_profile(
 async def create_institution_profile(
     institution_profile_in: UserCreateInstitutionProfileModel,
     current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ):
     """
@@ -374,6 +386,15 @@ async def create_institution_profile(
     # Attach profile picture if user has one
     user = await user_repo.get_by_email(session, email=current_user.email)
     user.role = UserRole.INSTITUTION
+    session.add(user)       # <-- make sure SQLAlchemy tracks this change
+    await session.commit()  # <-- persist it to DB
+    await session.refresh(user)
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    response = verify_email_response(user, new_access_token, response)
+
+
     institution_obj_profile.profile_picture = user.profile_picture or None
 
     # Add and commit
@@ -397,6 +418,7 @@ async def create_institution_profile(
 @router.post("/login", response_model=LoginResponseModel)
 async def login_for_access_token(
     form_data: UserLoginModel,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
@@ -453,12 +475,45 @@ async def logout(
 
 
 
-@router.get("/users/me", response_model=TokenUser)
+
+@router.get("/users/me", response_model=dict)
 async def read_users_me(
-    current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))]
+    current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
+    session: AsyncSession = Depends(get_session),
 ):
-    """Get details of the current user."""
-    return current_user
+    """
+    Get details of the current user along with profile information.
+    If the user has a student profile, include institution info.
+    If the user has an institution profile, include institution profile details.
+    """
+
+    user_data = await user_repo.get_by_email(session, email=current_user.email)
+    result = {
+        "user": current_user.dict(),
+        "profile_picture": user_data.profile_picture if user_data else None
+    }
+
+    # Check if user is a student and has a profile
+    if current_user.role == UserRole.STUDENT:
+        query = select(StudentProfile).where(StudentProfile.user_id == current_user.id)
+        student_profile = (await session.execute(query)).scalar_one_or_none()
+        if student_profile:
+            result["student_profile"] = StudentProfileRead.model_validate(student_profile).model_dump()
+            # Include the institution info if available
+            if student_profile.institution_id:
+                inst_query = select(Institution).where(Institution.id == student_profile.institution_id)
+                institution = (await session.execute(inst_query)).scalar_one_or_none()
+                if institution:
+                    result["institution"] = institution.model_dump()
+
+    # Check if user is an institution and has a profile
+    elif current_user.role == UserRole.INSTITUTION:
+        query = select(InstitutionProfile).where(InstitutionProfile.user_id == current_user.id)
+        institution_profile = (await session.execute(query)).scalar_one_or_none()
+        if institution_profile:
+            result["institution_profile"] = InstitutionProfileRead.model_validate(institution_profile).model_dump()
+
+    return result
 
 
 

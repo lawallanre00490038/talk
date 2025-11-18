@@ -4,6 +4,7 @@ import uuid
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, update
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.core.auth import get_current_user_dependency
@@ -27,6 +28,7 @@ async def get_my_notifications(
     statement = (
         select(Notification)
         .where(Notification.user_id == current_user.id)
+        .options(selectinload(Notification.user))
         .order_by(Notification.created_at.desc())
         .offset(pagination.skip)
         .limit(pagination.limit)

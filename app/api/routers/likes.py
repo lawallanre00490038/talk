@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 import uuid
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_session
 from app.core.auth import get_current_user_dependency
@@ -21,7 +22,7 @@ async def toggle_like_post(
     session: AsyncSession = Depends(get_session),
     current_user: TokenUser = Depends(get_current_user_dependency(settings))
 ):
-    post = await post_repo.get(session, id=post_id)
+    post = await post_repo.get(session, id=post_id, options=[selectinload(Post.author)])
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
         
