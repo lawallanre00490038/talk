@@ -11,7 +11,7 @@ from app.db.models import Institution, Post, UploadedDocument, UserRole, PostPri
 from app.schemas.institution import InstitutionPublic, UploadedDocumentCreate, UploadedDocumentPublic, InstitutionTimelineResponse, PostPublic
 from app.schemas.auth import TokenUser
 from app.db.repositories.institution_repo import institution_repo
-from app.services.rag_service import ingest_document_background
+# from app.services.rag_service import ingest_document_background
 
 router = APIRouter()
 
@@ -139,7 +139,7 @@ async def upload_document_for_rag(
     created = await institution_repo.create_document(session, obj_in=doc)
 
     # Enqueue RAG ingestion in background
-    background_tasks.add_task(ingest_document_background, created.id, created.file_url, institution_id)
+    # background_tasks.add_task(ingest_document_background, created.id, created.file_url, institution_id)
 
     return created
 
@@ -238,16 +238,16 @@ async def chatbot_query(
     current_user: TokenUser = Depends(get_current_user_dependency(settings=settings)),
 ):
     """Query the RAG chatbot for an institution."""
-    from app.services.rag_service import rag_service
+    # from app.services.rag_service import rag_service
 
     inst = await institution_repo.get(session, id=institution_id)
     if not inst:
         raise HTTPException(status_code=404, detail="Institution not found")
 
-    result = await rag_service.query(institution_id, query, top_k=3)
+    # result = await rag_service.query(institution_id, query, top_k=3)
     return {
-        "success": result["success"],
-        "answer": result["answer"],
-        "sources": result["sources"],
+        # "success": result["success"],
+        # "answer": result["answer"],
+        # "sources": result["sources"],
         "institution_id": institution_id,
     }
