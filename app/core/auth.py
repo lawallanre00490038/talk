@@ -9,7 +9,7 @@ from typing import Optional
 from datetime import datetime
 
 
-from app.schemas.auth import TokenUser, LoginResponseModel
+from app.schemas.auth import TokenUser, LoginResponseModel, UserCreateRead
 from app.core.config import settings, BaseSettings
 from app.db.models import User, UserRole
 from app.errors import UnAuthenticated, UserNotFound, InvalidToken
@@ -127,16 +127,6 @@ def verify_email_response(user, access_token: str, response: Response):
 
     print("This is the user", user)
 
-    user_data = {
-        "id": str(user.id),
-        "full_name": user.full_name,
-        "email": user.email,
-        "role": user.role,
-        "is_verified": user.is_verified,
-        "created_at": user.created_at,
-        "updated_at": user.updated_at,
-    }
-
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -149,7 +139,7 @@ def verify_email_response(user, access_token: str, response: Response):
     return LoginResponseModel(
         status=True,
         message="User successfully logged in",
-        data=user_data
+        data=UserCreateRead.model_validate(user)
     )
 
 
