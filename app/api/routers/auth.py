@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status, Response, BackgroundTasks, Query
 from datetime import timedelta
 import cloudinary
@@ -125,7 +125,6 @@ async def register_user(
 
 
 
-
 # ==============================
 # EMAIL VERIFICATION ENDPOINT
 # ==============================
@@ -168,14 +167,6 @@ async def verify_email(
     return response
 
 
-
-
-
-cloudinary.config(
-    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-    api_key=settings.CLOUDINARY_API_KEY,
-    api_secret=settings.CLOUDINARY_API_SECRET,
-)
 
 @router.post("/profile/picture", response_model=LoginResponseModel)
 async def upload_profile_picture(
@@ -514,6 +505,37 @@ async def read_users_me(
             result["institution_profile"] = InstitutionProfileRead.model_validate(institution_profile).model_dump()
 
     return result
+
+
+
+# Give me an enpoint that sets the is_onboarding_completed flag to true
+@router.post("/set-onboarding-status", response_model=LoginResponseModel)
+async def set_onboarding_status(
+    current_user: Annotated[TokenUser, Depends(get_current_user_dependency(settings=settings))],
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    is_onboarding_completed: Literal["true", "false"] = "false",
+):
+    """Set the is_onboarding_completed flag to true."""
+    map_onboarding_status = {
+        "true": True,
+        "false": False
+    }
+
+    user = await user_repo.get_by_email(session, email=current_user.email)
+    user.is_onboarding_completed = map_onboarding_status[is_onboarding_completed]
+    await session.commit()
+    await session.refresh(user)
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    response = verify_email_response(user, access_token, response)
+
+    return LoginResponseModel(
+        status=True,
+        message="Onboarding is set to true successfully",
+        data=UserCreateRead.model_validate(user)
+    )
 
 
 

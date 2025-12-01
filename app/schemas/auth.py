@@ -156,6 +156,7 @@ class UserCreateRead(BaseModel):
     email: EmailStr
     role: Optional[str] = "user"
     verification_token: Optional[str] = None
+    is_onboarding_completed: Optional[bool] = False
     profile_picture: Optional[str] = None
     is_verified: bool
     created_at: Optional[datetime] = None

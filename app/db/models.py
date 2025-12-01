@@ -75,6 +75,7 @@ class User(SQLModel, table=True):
     profile_picture: Optional[str] = None
     is_active: bool = Field(default=True)
     verification_token: Optional[str]  = None
+    is_onboarding_completed: bool = Field(default=False, nullable=True)
     is_verified: bool = Field(default=False)
     role: UserRole = Field(sa_column=Column(Enum(UserRole)), default=UserRole.GENERAL)
     
