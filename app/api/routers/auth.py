@@ -162,8 +162,8 @@ async def verify_email(
     await session.commit()
     await session.refresh(user)
 
-    access_token = create_access_token(user=user)
-    response = verify_email_response(user, access_token, response)
+    campustalk_access_token = create_access_token(user=user)
+    response = verify_email_response(user, campustalk_access_token, response)
     return response
 
 
@@ -440,8 +440,8 @@ async def login_for_access_token(
         )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(user=user, expires_delta=access_token_expires)
-    return verify_email_response(user=user, access_token=access_token, response=response)
+    campustalk_access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    return verify_email_response(user=user, campustalk_access_token=campustalk_access_token, response=response)
 
 
 
@@ -455,9 +455,9 @@ async def logout(
     """Logout user and clear access token."""
     # Clear the access token cookie
     # check if the cookie exists
-    if "access_token" not in request.cookies:
+    if "campustalk_access_token" not in request.cookies:
         raise UserLoggedOut()
-    response.delete_cookie(key="access_token", samesite="none", secure=True)
+    response.delete_cookie(key="campustalk_access_token", samesite="none", secure=True)
 
     return DeleteResponseModel(
         status=True,
@@ -528,8 +528,8 @@ async def set_onboarding_status(
     await session.refresh(user)
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(user=user, expires_delta=access_token_expires)
-    response = verify_email_response(user, access_token, response)
+    campustalk_access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    response = verify_email_response(user, campustalk_access_token, response)
 
     return LoginResponseModel(
         status=True,
@@ -632,7 +632,7 @@ async def delete_user(
     user_service = UserService()
     try:
         await user_service.delete_user(current_user, session)
-        response.delete_cookie(key="access_token")
+        response.delete_cookie(key="campustalk_access_token")
     except Exception as e:
         raise e
 
@@ -676,8 +676,8 @@ async def validate(user_data: dict, request:  Optional[Request] = None , respons
     # Now generate the access token
     access_token_expires = timedelta(minutes=300)
     print("Creating access token for user:", user)
-    access_token = create_access_token(settings=settings, user=user, expires_delta=access_token_expires)
+    campustalk_access_token = create_access_token(settings=settings, user=user, expires_delta=access_token_expires)
 
 
-    result = verify_email_response(user, access_token, response)
+    result = verify_email_response(user, campustalk_access_token, response)
     return result

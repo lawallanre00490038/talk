@@ -13,7 +13,7 @@ Returns the logged-in student's institution details (name, location, description
 
 ### Request Headers
 ```
-Authorization: Bearer <access_token>
+Authorization: Bearer <campustalk_access_token>
 ```
 
 ### Response Example
@@ -128,7 +128,7 @@ export function InstitutionTimeline() {
   const [institution, setInstitution] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const token = localStorage.getItem('access_token');
+  const token = localStorage.getItem('campustalk_access_token');
 
   useEffect(() => {
     const fetchTimeline = async () => {

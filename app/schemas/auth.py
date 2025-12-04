@@ -206,7 +206,7 @@ class TokenUser(BaseModel):
     id: Optional[str] = None
     is_verified: Optional[bool] = False
     role: Optional[str]
-    access_token: Optional[str] = "Sorry, We can not send the access token in the response"
+    campustalk_access_token: Optional[str] = "Sorry, We can not send the access token in the response"
     token_type: Optional[str] = "bearer"
 
     model_config = ConfigDict(from_attributes=True)

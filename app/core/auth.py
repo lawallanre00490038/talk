@@ -84,9 +84,9 @@ def get_current_user_dependency(settings: BaseSettings):
     ) -> TokenUser:
 
         
-        access_token = token or request.cookies.get("access_token")
+        campustalk_access_token = token or request.cookies.get("campustalk_access_token")
 
-        if not access_token:
+        if not campustalk_access_token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="You are not authenticated. Please login to continue",
@@ -94,7 +94,7 @@ def get_current_user_dependency(settings: BaseSettings):
             )
 
         try:
-            payload = decode_token(access_token, settings)
+            payload = decode_token(campustalk_access_token, settings)
             email = payload.get("sub")
             user_id = payload.get("id")
             full_name = payload.get("full_name")
@@ -109,7 +109,7 @@ def get_current_user_dependency(settings: BaseSettings):
                 id=user_id,
                 is_verified=payload.get("is_verified"),
                 role=role,
-                access_token=access_token,
+                campustalk_access_token=campustalk_access_token,
                 token_type="bearer"
             )
 
@@ -123,13 +123,13 @@ def get_current_user_dependency(settings: BaseSettings):
 
 
 
-def verify_email_response(user, access_token: str, response: Response):
+def verify_email_response(user, campustalk_access_token: str, response: Response):
 
     print("This is the user", user)
 
     response.set_cookie(
-        key="access_token",
-        value=access_token,
+        key="campustalk_access_token",
+        value=campustalk_access_token,
         httponly=True, 
         max_age=18000, 
         samesite="none",
@@ -150,12 +150,12 @@ def get_optional_current_user_dependency(settings):
         request: Request,
         token: Optional[str] = Depends(optional_oauth2_scheme)
     ) -> Optional[TokenUser]:
-        access_token = token or request.cookies.get("access_token")
-        if not access_token:
+        campustalk_access_token = token or request.cookies.get("campustalk_access_token")
+        if not campustalk_access_token:
             return None
 
         try:
-            payload = decode_token(access_token, settings)
+            payload = decode_token(campustalk_access_token, settings)
             email = payload.get("sub")
             user_id = payload.get("id")
             full_name = payload.get("full_name")
@@ -170,7 +170,7 @@ def get_optional_current_user_dependency(settings):
                 id=user_id,
                 is_verified=payload.get("is_verified"),
                 role=role,
-                access_token=access_token,
+                campustalk_access_token=campustalk_access_token,
                 token_type="bearer"
             )
         except jwt.ExpiredSignatureError:

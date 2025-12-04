@@ -39,5 +39,5 @@ async def test_login_for_access_token(client: AsyncClient, db_session: AsyncSess
     assert response.status_code == status.HTTP_200_OK
     print(f"response.json() = {response.json()}\n\n\n\n")
     data = response.json()
-    assert "access_token" in data
+    assert "campustalk_access_token" in data
     assert data["token_type"] == "bearer"

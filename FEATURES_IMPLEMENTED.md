@@ -296,7 +296,7 @@ import { useEffect, useState } from 'react';
 
 export function InstitutionTimeline() {
   const [data, setData] = useState(null);
-  const token = localStorage.getItem('access_token');
+  const token = localStorage.getItem('campustalk_access_token');
 
   useEffect(() => {
     fetch('/institutions/timeline/my-institution', {
