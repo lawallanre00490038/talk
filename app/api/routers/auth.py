@@ -676,7 +676,7 @@ async def validate(user_data: dict, request:  Optional[Request] = None , respons
     # Now generate the access token
     access_token_expires = timedelta(minutes=300)
     print("Creating access token for user:", user)
-    campustalk_access_token = create_access_token(settings=settings, user=user, expires_delta=access_token_expires)
+    campustalk_access_token = create_access_token(user=user, expires_delta=access_token_expires)
 
 
     result = verify_email_response(user, campustalk_access_token, response)
