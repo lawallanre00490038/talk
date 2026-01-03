@@ -45,6 +45,7 @@ logger.addHandler(file_handler)
 allowed_origins = [
     "http://localhost:3000",
     "talk-lgsa.onrender.com",
+    "https://talk-lgsa.onrender.com/"
     "https://campus-talk-frontend.vercel.app/"
 ]
 
