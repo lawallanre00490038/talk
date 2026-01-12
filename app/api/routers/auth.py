@@ -92,7 +92,8 @@ async def register_user(
         email=user_in.email,
         full_name=user_in.full_name,
         verification_token=verification_token,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        role=user_in.role
     )
 
     created_user = await user_repo.create(session, obj_in=user_obj)
@@ -204,6 +205,8 @@ async def upload_profile_picture(
     await session.commit()
     await session.refresh(user)
 
+
+    print("\n\nPROFILE PICTURE:", user.profile_picture)
     return LoginResponseModel(
         status=True,
         message="Profile picture uploaded successfully",
@@ -282,6 +285,7 @@ async def create_student_profile(
         institution_name=student_profile_in.institution_name,
         matric_number=student_profile_in.matric_number,
         faculty=student_profile_in.faculty,
+        department=student_profile_in.department,
         educational_level=student_profile_in.educational_level,
     )
     created_student = await student_profile_repo.create(session, obj_in=student_obj)
@@ -296,8 +300,6 @@ async def create_student_profile(
     new_access_token = create_access_token(user=user, expires_delta=access_token_expires)
     response = verify_email_response(user, new_access_token, response)
 
-
-    student_obj.profile_picture = user.profile_picture or None
     await session.commit()
 
     logger.info(f"Created student {created_student.id}")
@@ -305,7 +307,13 @@ async def create_student_profile(
     return LoginResponseModel(
         status=True,
         message="Student profile created successfully",
-        data=StudentProfileRead.model_validate(created_student)
+        data=StudentProfileRead(
+            profile_picture=user.profile_picture,
+            matric_number=created_student.matric_number,
+            faculty=created_student.faculty,
+            educational_level=created_student.educational_level,
+            department=created_student.department
+        )
     )
 
 
@@ -441,6 +449,8 @@ async def login_for_access_token(
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     campustalk_access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    print("RAW USER DICT:", user.__dict__)
+    print("PROFILE PICTURE ATTR:", getattr(user, "profile_picture", "MISSING"))
     return verify_email_response(user=user, campustalk_access_token=campustalk_access_token, response=response)
 
 

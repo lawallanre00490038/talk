@@ -165,6 +165,8 @@ class UserCreateRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True) 
 
+
+
 class StudentProfileRead(BaseModel):
     matric_number: Optional[str] = None
     faculty: Optional[str] = None

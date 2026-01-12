@@ -1,14 +1,16 @@
 # app/api/routers/posts.py
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from typing import List, Optional
+import cloudinary
+import cloudinary.uploader
 
 from app.core.config import settings
 from app.core.auth import get_current_user_dependency
 from app.db.session import get_session
-from app.db.models import User, Post, UserRole, PostType
+from app.db.models import Media, MediaType, PostPrivacy, User, Post, UserRole, PostType
 from app.schemas.auth import TokenUser
 from app.schemas.post import PostCreate, PostPublic, PresignedUrlResponse
 from app.db.repositories.post_repo import post_repo
@@ -23,9 +25,18 @@ router = APIRouter()
 async def create_post(
     *,
     session: AsyncSession = Depends(get_session),
-    post_in: PostCreate,
     background_tasks: BackgroundTasks,
     current_user: TokenUser = Depends(get_current_user_dependency(settings=settings)),
+
+    # form fields
+    content: str = Form(...),
+    privacy: PostPrivacy = Form(PostPrivacy.PUBLIC),
+    post_type: PostType = Form(PostType.POST),
+    is_school_scope: bool = Form(False),
+
+    # media
+    images: Optional[list[UploadFile]] = File(None),
+    video: Optional[UploadFile] = File(None),
 ):
     """
     Create a new post (regular or reel).
@@ -35,37 +46,141 @@ async def create_post(
     - Upload the file to S3.
     - Include the media URL in the `content` or media list.
     """
-    post_data = post_in.model_dump()
-    post_data["author_id"] = current_user.id
 
-    # Automatically set school_scope for student posts if applicable
-    if post_in.school_scope and current_user.role == UserRole.STUDENT:
-        user = await session.get(User, current_user.id, options=[selectinload(User.student_profile)])
-        post_data["school_scope"] = (
-            user.student_profile.institution_name if user and user.student_profile else None
+    # -----------------------------
+    # VALIDATION
+    # -----------------------------
+    if images and video:
+        raise HTTPException(400, "Cannot upload images and video together")
+
+    if post_type == PostType.REEL and not video:
+        raise HTTPException(400, "Reel post requires a video")
+
+    if post_type == PostType.POST and not (content or images):
+        raise HTTPException(400, "Post must have text or image")
+
+    # -----------------------------
+    # SCHOOL SCOPE AUTO-SET
+    # -----------------------------
+    final_school_scope = None
+    if is_school_scope and current_user.role in [UserRole.STUDENT, UserRole.INSTITUTION]:
+        user = await session.get(
+            User,
+            current_user.id,
+            options=[
+                selectinload(User.student_profile),
+                selectinload(User.institution_profile),
+            ],
         )
+        final_school_scope = None
+        if user.institution_profile:
+            final_school_scope = user.institution_profile.institution_name
+        elif user.student_profile:
+            final_school_scope = user.student_profile.institution_name
 
-    post = Post(**post_data)
-    new_post = await post_repo.create(session, obj_in=post)
-
-
-
-    # If it's a video (reel), trigger background thumbnail generation
-    if new_post.post_type == PostType.REEL:
-        background_tasks.add_task(process_video_thumbnail, post_id=new_post.id)
-
-    # Reload post with author for full response
-    result = await session.execute(
-        select(Post)
-        .options(selectinload(Post.author))
-        .where(Post.id == new_post.id)
+        print(f"\n\nThe student institution name: {final_school_scope}\n\n")
+    # -----------------------------
+    # CREATE POST (FIRST)
+    # -----------------------------
+    post = Post(
+        author_id=current_user.id,
+        content=content or "",
+        post_type=post_type,
+        privacy=privacy,
+        school_scope=final_school_scope,
     )
 
-    post_to_send =  result.scalar_one()
+    session.add(post)
+    await session.flush()  # 🔑 ensures post.id exists
 
-    return post_to_send
+    # -----------------------------
+    # HANDLE MEDIA UPLOADS
+    # -----------------------------
+    media_objects: list[Media] = []
 
-    
+    if images:
+        for img in images:
+            if img.content_type not in ["image/jpeg", "image/png"]:
+                raise HTTPException(400, "Only JPG and PNG images allowed")
+
+            upload = cloudinary.uploader.upload(
+                img.file,
+                folder="posts/images",
+                resource_type="image",
+            )
+
+            media_objects.append(
+                Media(
+                    post_id=post.id,
+                    media_type=MediaType.IMAGE,
+                    url=upload["secure_url"],
+                    file_metadata={
+                        "width": upload.get("width"),
+                        "height": upload.get("height"),
+                        "format": upload.get("format"),
+                        "bytes": upload.get("bytes"),
+                    },
+                )
+            )
+
+    if video:
+        if video.content_type not in ["video/mp4", "video/quicktime"]:
+            raise HTTPException(400, "Only MP4 or MOV videos allowed")
+
+        upload = cloudinary.uploader.upload(
+            video.file,
+            folder="posts/videos",
+            resource_type="video",
+        )
+
+        media_objects.append(
+            Media(
+                post_id=post.id,
+                media_type=MediaType.VIDEO,
+                url=upload["secure_url"],
+                file_metadata={
+                    "duration": upload.get("duration"),
+                    "format": upload.get("format"),
+                    "bytes": upload.get("bytes"),
+                },
+            )
+        )
+
+    session.add_all(media_objects)
+
+    # -----------------------------
+    # COMMIT ONCE (ATOMIC)
+    # -----------------------------
+    await session.commit()
+    await session.refresh(post)
+
+    # -----------------------------
+    # BACKGROUND VIDEO PROCESSING
+    # -----------------------------
+    if post_type == PostType.REEL and media_objects:
+        background_tasks.add_task(
+            process_video_thumbnail,
+            post_id=post.id,
+            video_url=media_objects[0].url,
+        )
+
+    # -----------------------------
+    # RESPONSE
+    # -----------------------------
+    result = await session.execute(
+        select(Post)
+        .options(
+            selectinload(Post.author),
+            selectinload(Post.media),
+        )
+        .where(Post.id == post.id)
+    )
+
+    return result.scalar_one()
+
+
+
+
 
 
 @router.get("/media/presigned-url", response_model=PresignedUrlResponse)

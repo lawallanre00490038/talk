@@ -127,8 +127,6 @@ class StudentProfile(SQLModel, table=True):
     user_id: str = Field(foreign_key="user.id", unique=True)
     institution_id: Optional[str] = Field(foreign_key="institution.id", default=None)
     institution_name: Optional[str] = None
-
-    profile_picture: Optional[str] = None
     faculty: Optional[str] = None
     department: Optional[str] = None
     matric_number: Optional[str]  = None
