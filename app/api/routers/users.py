@@ -54,7 +54,7 @@ async def get_media_files_by_category(category: str):
     Return all media file URLs in a given category (subfolder).
 
     Args:
-        category (str): The subfolder name inside media_files, e.g., 'campus_blog', 'lasu_blog', 'oau_post', 'reels', 'unilag_post', 'yabatech_post'.
+        category (str): The subfolder name inside media_files, e.g., 'campus_post', 'lasu_post', 'oau_post', 'reels', 'unilag_post', 'yabatech_post'.
 
     Returns:
         List[str]: List of file URLs under that category.
