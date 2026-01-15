@@ -48,6 +48,7 @@ CLOUDINARY_CATEGORIES = [
 # ----------------------------
 # Get all files for a category
 # ----------------------------
+
 @router.get("/media-files/{category}", response_model=list[str])
 async def get_media_files_by_category(category: str):
     """
@@ -60,17 +61,28 @@ async def get_media_files_by_category(category: str):
         List[str]: List of file URLs under that category.
     """
     if category not in CLOUDINARY_CATEGORIES:
+
         raise HTTPException(status_code=400, detail=f"Invalid category '{category}'")
 
     try:
-        resources = cloudinary.api.resources(
+        image_resources = cloudinary.api.resources(
             type="upload",
-            prefix=category,   # fetch all files under this folder
-            resource_type="auto",
-            max_results=500,  # adjust based on expected number of files
-            context=True
+            resource_type="image",
+            prefix=category,
+            max_results=500
         )
-        urls = [res.get("secure_url") for res in resources.get("resources", [])]
+
+        video_resources = cloudinary.api.resources(
+            type="upload",
+            resource_type="video",
+            prefix=category,
+            max_results=500
+        )
+
+        urls = (
+            [r["secure_url"] for r in image_resources.get("resources", [])] +
+            [r["secure_url"] for r in video_resources.get("resources", [])]
+        )
 
     except cloudinary.exceptions.Error as e:
         raise HTTPException(status_code=500, detail=f"Cloudinary error: {str(e)}")
