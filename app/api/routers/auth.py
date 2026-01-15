@@ -1,7 +1,7 @@
 from typing import Annotated, Literal, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status, Response, BackgroundTasks, Query
 from datetime import timedelta
-import cloudinary
+from app.core.cloudinary import cloudinary
 import cloudinary.uploader
 import uuid, jwt, random
 
