@@ -8,8 +8,6 @@ MEDIA_BASE_FOLDER = "media_files"
 
 # List of allowed categories/folders
 CATEGORIES = [
-    "campus_post",
-    "lasu_post",
     "reels",
 ]
 

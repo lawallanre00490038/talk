@@ -66,6 +66,7 @@ async def get_media_files_by_category(category: str):
         resources = cloudinary.api.resources(
             type="upload",
             prefix=category,   # fetch all files under this folder
+            resource_type="auto",
             max_results=500,  # adjust based on expected number of files
             context=True
         )
