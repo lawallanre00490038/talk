@@ -8,13 +8,9 @@ MEDIA_BASE_FOLDER = "media_files"
 
 # List of allowed categories/folders
 CATEGORIES = [
-    # "campus_blog",
-    # "lasu_blog",
-    # "oau_post",
-    # "reels",
-    # "unilag_post",
-    # "yabatech_post",
-    "chatbot"
+    "campus_post",
+    "lasu_post",
+    "reels",
 ]
 
 def upload_file(file_path: str, folder: str):
