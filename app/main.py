@@ -84,8 +84,6 @@ async def root():
 
 @app.websocket("/ws/notifications/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    # Here you would add authentication logic for the WebSocket connection
-    # For simplicity, we are trusting the user_id from the path
     await manager.connect(websocket, user_id)
     try:
         while True:
@@ -95,10 +93,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
 
 
-
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=10000, reload=True)
-
-    # uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
