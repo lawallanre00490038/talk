@@ -42,7 +42,11 @@ async def read_user_by_id(
 # Cloudinary categories (folders)
 # ----------------------------
 CLOUDINARY_CATEGORIES = [
+<<<<<<< HEAD
     "campus_post", "lasu_post", "oau_post", "reels", "unilag_post", "yabatech_post", "chatbot"
+=======
+    "campus_blog", "lasu_blog", "oau_post", "reels", "unilag_post", "yabatech_post"
+>>>>>>> 74ce231488d71b16c17104f384bfeeed096c5f46
 ]
 
 # ----------------------------
