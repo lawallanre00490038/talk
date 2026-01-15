@@ -62,8 +62,11 @@ async def create_post(
     # -----------------------------
     # SCHOOL SCOPE AUTO-SET
     # -----------------------------
-    final_school_scope = None
-    if is_school_scope and current_user.role in [UserRole.STUDENT, UserRole.INSTITUTION]:
+    # -----------------------------
+    # GET INSTITUTION ID
+    # -----------------------------
+    final_institution_id = None
+    if is_school_scope:
         user = await session.get(
             User,
             current_user.id,
@@ -72,26 +75,26 @@ async def create_post(
                 selectinload(User.institution_profile),
             ],
         )
-        final_school_scope = None
+        
+        # Check profiles for the ID
         if user.institution_profile:
-            final_school_scope = user.institution_profile.institution_name
+            final_institution_id = user.institution_profile.institution_id
         elif user.student_profile:
-            final_school_scope = user.student_profile.institution_name
+            final_institution_id = user.student_profile.institution_id
+            
+        if not final_institution_id:
+             raise HTTPException(400, "User is not linked to a valid institution")
 
-        print(f"\n\nThe student institution name: {final_school_scope}\n\n")
-    # -----------------------------
-    # CREATE POST (FIRST)
-    # -----------------------------
     post = Post(
         author_id=current_user.id,
-        content=content or "",
+        content=content,
         post_type=post_type,
         privacy=privacy,
-        school_scope=final_school_scope,
+        school_scope=final_institution_id,
     )
 
     session.add(post)
-    await session.flush()  # 🔑 ensures post.id exists
+    await session.flush()
 
     # -----------------------------
     # HANDLE MEDIA UPLOADS
@@ -252,6 +255,41 @@ async def read_post(
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     return post
+
+
+
+
+
+@router.get("/institution/{institution_id}", response_model=List[PostPublic])
+async def get_posts_by_institution(
+    *,
+    institution_id: str,
+    session: AsyncSession = Depends(get_session),
+    pagination: pagination_params = Depends(),
+    post_type: Optional[PostType] = None
+):
+    """
+    Fetch all posts belonging to a specific institution by ID.
+    """
+    stmt = (
+        select(Post)
+        .where(Post.school_scope == institution_id)
+        .options(
+            selectinload(Post.author),
+            selectinload(Post.media)
+        )
+        .order_by(Post.created_at.desc())
+    )
+    
+    if post_type:
+        stmt = stmt.where(Post.post_type == post_type)
+
+    stmt = stmt.offset(pagination.skip).limit(pagination.limit)
+    
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)

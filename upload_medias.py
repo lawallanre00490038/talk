@@ -19,7 +19,7 @@ def upload_file(file_path: str, folder: str):
     mime_type, _ = mimetypes.guess_type(file_path)
     resource_type = "video" if mime_type and mime_type.startswith("video") else "image"
 
-    public_id = os.path.splitext(os.path.basename(file_path))[0]  # filename without extension
+    public_id = os.path.splitext(os.path.basename(file_path))[0]
 
     try:
         result = cloudinary.uploader.upload(

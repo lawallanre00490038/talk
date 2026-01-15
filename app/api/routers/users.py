@@ -1,7 +1,5 @@
 # app/api/routers/users.py
-from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status
-import uuid
+from fastapi import APIRouter, Depends, HTTPException
 from app.core.cloudinary import cloudinary
 import cloudinary.api
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,10 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import get_session
 from app.core.auth import get_current_user_dependency
-from app.db.models import User
 from app.schemas.auth import TokenUser, UserPublic
 from app.db.repositories.user_repo import user_repo
-from urllib.parse import quote
 
 router = APIRouter()
 
