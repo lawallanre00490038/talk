@@ -318,10 +318,8 @@ async def create_student_profile(
 
 
 
-
 # ==============================
-# CREATE INSTITUTION PROFILE ENDPOINT
-# ==============================
+# CREATE INSTITUTION PROFILE ENDPOINT (FIXED)
 @router.post("/profile/institution", response_model=LoginResponseModel)
 async def create_institution_profile(
     institution_profile_in: UserCreateInstitutionProfileModel,
@@ -351,6 +349,7 @@ async def create_institution_profile(
     Returns:
         LoginResponseModel: Status, message, and created institution profile data.
     """
+    print(institution_profile_in, "\n\n")
     if not current_user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -381,33 +380,50 @@ async def create_institution_profile(
         institution_email=institution_profile_in.institution_email
     )
 
-
-    # Attach profile picture if user has one
+    # 1. Fetch the user object from the DB to modify it
     user = await user_repo.get_by_email(session, email=current_user.email)
+    if not user:
+         raise HTTPException(status_code=404, detail="User not found")
+
+    # 2. Update the User Role
     user.role = UserRole.INSTITUTION
-    session.add(user)       # <-- make sure SQLAlchemy tracks this change
-    await session.commit()  # <-- persist it to DB
-    await session.refresh(user)
+    session.add(user)
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    new_access_token = create_access_token(user=user, expires_delta=access_token_expires)
-    response = verify_email_response(user, new_access_token, response)
+    # 3. Create the InstitutionProfile object
+    institution_obj_profile = InstitutionProfile(
+        user_id=user.id, # Use user.id directly
+        institution_id=institution_profile_in.institution_id,
+        institution_name=institution_profile_in.institution_name,
+        institution_email=institution_profile_in.institution_email,
+        profile_picture=user.profile_picture # Sync the picture here
+    )
 
-
-    institution_obj_profile.profile_picture = user.profile_picture or None
-
-    # Add and commit
+    # 4. Add the profile to the session
     session.add(institution_obj_profile)
+
+    # 5. Commit EVERYTHING at once
+    # This ensures both the user role update and profile creation succeed together
     await session.commit()
+    
+    # 6. Refresh to get IDs and generated fields
+    await session.refresh(user)
     await session.refresh(institution_obj_profile)
 
-    logger.info(f"Created institution {institution_obj_profile.id}")
+    # 7. Generate new token with updated role
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_access_token = create_access_token(user=user, expires_delta=access_token_expires)
+    
+    # This helper usually sets the cookie in the response
+    verify_email_response(user, new_access_token, response)
+
+    logger.info(f"Created institution profile {institution_obj_profile.id} for user {user.id}")
 
     return LoginResponseModel(
         status=True,
         message="Institution profile created successfully",
         data=InstitutionProfileRead.model_validate(institution_obj_profile)
     )
+
 
 
 
@@ -509,10 +525,13 @@ async def read_users_me(
 
     # Check if user is an institution and has a profile
     elif current_user.role == UserRole.INSTITUTION:
+        print(f"\n\n\nThis is the {UserRole.INSTITUTION}")
         query = select(InstitutionProfile).where(InstitutionProfile.user_id == current_user.id)
         institution_profile = (await session.execute(query)).scalar_one_or_none()
+        print(f"\n\nThis is the school profile: {institution_profile}\n")
         if institution_profile:
             result["institution_profile"] = InstitutionProfileRead.model_validate(institution_profile).model_dump()
+            print(result["institution_profile"])
 
     return result
 

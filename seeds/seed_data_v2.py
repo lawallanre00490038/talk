@@ -75,7 +75,7 @@ async def seed_all():
                 email="student@unilag.edu",
                 full_name="Felix Gabriel",
                 hashed_password=get_password_hash("password123"),
-                role="student",
+                role="STUDENT",
                 is_verified=True,
             )
             session.add(student_unilag)
