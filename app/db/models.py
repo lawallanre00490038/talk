@@ -90,12 +90,12 @@ class User(SQLModel, table=True):
     )
 
     student_profile: Optional["StudentProfile"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"lazy": "selectin"},
+        back_populates="user", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"}
     )
     institution_profile: Optional["InstitutionProfile"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"lazy": "selectin"},
+        back_populates="user", 
+        sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "selectin"}
     )
 
     posts: List["Post"] = Relationship(back_populates="author", sa_relationship_kwargs={"lazy": "selectin"})

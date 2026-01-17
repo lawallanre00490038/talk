@@ -1,16 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+import cloudinary
+import cloudinary.uploader
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import List, Optional
 
+from app.api.deps import pagination_params
 from app.db.session import get_session
 from app.core.auth import get_current_user_dependency
 from app.core.config import settings
-from app.db.models import Institution, Post, UploadedDocument, UserRole, PostPrivacy, StudentProfile
+from app.db.models import Institution, Media, MediaType, Post, PostType, UploadedDocument, UserRole, PostPrivacy, StudentProfile
 from app.schemas.institution import InstitutionPublic, UploadedDocumentCreate, UploadedDocumentPublic, InstitutionTimelineResponse, PostPublic
 from app.schemas.auth import TokenUser
 from app.db.repositories.institution_repo import institution_repo
+from app.tasks.media_tasks import process_video_thumbnail
 # from app.services.rag_service import ingest_document_background
 
 router = APIRouter()
@@ -35,76 +39,136 @@ async def get_institution(
     })
 
 
-@router.get("/{institution_id}/posts", response_model=List)
-async def list_institution_posts(
+
+
+@router.get("/{institution_id}/posts", response_model=List[PostPublic])
+async def get_posts_by_institution(
+    *,
     institution_id: str,
     session: AsyncSession = Depends(get_session),
-    skip: int = 0,
-    limit: int = 50,
+    pagination: pagination_params = Depends(),
+    post_type: Optional[PostType] = None
 ):
-    # Return posts whose school_scope matches institution name
-    inst = await institution_repo.get(session, id=institution_id)
-    if not inst:
-        raise HTTPException(status_code=404, detail="Institution not found")
-
-    statement = (
+    """
+    Fetch all posts belonging to a specific institution by ID.
+    """
+    stmt = (
         select(Post)
-        .where(Post.school_scope == inst.institution_name)
-        .options(selectinload(Post.author), selectinload(Post.media), selectinload(Post.comments))
+        .where(Post.school_scope == institution_id)
+        .options(
+            selectinload(Post.author),
+            selectinload(Post.media)
+        )
         .order_by(Post.created_at.desc())
-        .offset(skip)
-        .limit(limit)
     )
-    result = await session.execute(statement)
-    posts = result.scalars().all()
-    return posts
+    
+    if post_type:
+        stmt = stmt.where(Post.post_type == post_type)
+
+    stmt = stmt.offset(pagination.skip).limit(pagination.limit)
+    
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
-@router.post("/{institution_id}/posts", status_code=status.HTTP_201_CREATED)
+
+
+
+@router.post("/{institution_id}/posts", response_model=PostPublic, status_code=status.HTTP_201_CREATED)
 async def create_institution_post(
     institution_id: str,
-    content: str,
-    post_type: str = "post",
-    mirror_to_general: bool = False,
+    content: str = Form(...),
+    post_type: PostType = Form(PostType.POST),
+    mirror_to_general: bool = Form(False),
+    images: Optional[list[UploadFile]] = File(None),
+    video: Optional[UploadFile] = File(None),
     session: AsyncSession = Depends(get_session),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: TokenUser = Depends(get_current_user_dependency(settings=settings)),
 ):
-    # Only institution users that own this institution can post here
-    if current_user.role != UserRole.INSTITUTION:
-        raise HTTPException(status_code=403, detail="Only institution accounts can create institution posts")
+    # 1. PERMISSION CHECK
+    if current_user.role not in [UserRole.INSTITUTION, UserRole.ADMIN]:
+        raise HTTPException(403, "Only institution accounts can create official posts")
 
-    inst = await institution_repo.get(session, id=institution_id)
-    if not inst:
-        raise HTTPException(status_code=404, detail="Institution not found")
-
-    # Ensure current_user has an institution_profile that matches this institution
-    # (InstitutionProfile is stored in db.models and created earlier by /profile/institution)
-    # Verify user is an admin/owner for this institution
     is_admin = await institution_repo.is_user_institution_admin(session, current_user.id, institution_id)
     if not is_admin and current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="You are not an admin for this institution")
+        raise HTTPException(403, "You are not an admin for this institution")
 
-    # If mirror_to_general is True, the post should appear on the general feed as well
-    if mirror_to_general:
-        post = Post(
-            author_id=current_user.id,
-            content=content,
-            post_type=post_type,
-            privacy=PostPrivacy.PUBLIC,
-            school_scope=None,
-        )
-    else:
-        post = Post(
-            author_id=current_user.id,
-            content=content,
-            post_type=post_type,
-            privacy=PostPrivacy.SCHOOL_ONLY,
-            school_scope=inst.institution_name,
-        )
+    # 2. VALIDATE MEDIA (Same as general post)
+    if images and video:
+        raise HTTPException(400, "Cannot upload images and video together")
+    if post_type == PostType.REEL and not video:
+        raise HTTPException(400, "Reel post requires a video")
+
+    # 3. INITIALIZE POST
+    privacy = PostPrivacy.PUBLIC if mirror_to_general else PostPrivacy.SCHOOL_ONLY
+    post = Post(
+        author_id=current_user.id,
+        content=content,
+        post_type=post_type,
+        privacy=privacy,
+        school_scope=institution_id, 
+    )
     session.add(post)
+    await session.flush() # Get post.id for media links
+
+    # 4. HANDLE IMAGE UPLOADS
+    media_objects: list[Media] = []
+    if images:
+        for img in images:
+            # You can extract this to a service.upload_media function
+            upload = cloudinary.uploader.upload(
+                img.file,
+                folder="posts/images",
+                resource_type="image",
+            )
+            media_objects.append(
+                Media(
+                    post_id=post.id,
+                    media_type=MediaType.IMAGE,
+                    url=upload["secure_url"],
+                    file_metadata={"format": upload.get("format"), "bytes": upload.get("bytes")}
+                )
+            )
+
+    # 5. HANDLE VIDEO UPLOADS
+    if video:
+        upload = cloudinary.uploader.upload(
+            video.file,
+            folder="posts/videos",
+            resource_type="video",
+        )
+        media_objects.append(
+            Media(
+                post_id=post.id,
+                media_type=MediaType.VIDEO,
+                url=upload["secure_url"],
+                file_metadata={"duration": upload.get("duration"), "bytes": upload.get("bytes")}
+            )
+        )
+
+    if media_objects:
+        session.add_all(media_objects)
+
+    # 6. ATOMIC COMMIT
     await session.commit()
     await session.refresh(post)
-    return post
+
+    # 7. TRIGGER BACKGROUND TASKS (Reels)
+    if post_type == PostType.REEL and media_objects:
+        background_tasks.add_task(
+            process_video_thumbnail, # Assuming this is imported
+            post_id=post.id,
+            video_url=media_objects[0].url,
+        )
+
+    # 8. FETCH FULL OBJECT FOR RESPONSE
+    result = await session.execute(
+        select(Post).options(selectinload(Post.author), selectinload(Post.media)).where(Post.id == post.id)
+    )
+    return result.scalar_one()
+
+
 
 
 @router.post("/{institution_id}/documents", response_model=UploadedDocumentPublic, status_code=status.HTTP_201_CREATED)

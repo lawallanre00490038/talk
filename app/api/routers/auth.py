@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from datetime import timedelta
 from app.core.cloudinary import cloudinary
 import cloudinary.uploader
-import uuid, jwt, random
+import jwt, random
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.services.user_service import UserService
-from app.errors import EmailAlreadyVerified, InvalidToken, UnAuthenticated, UserLoggedOut
+from app.errors import EmailAlreadyVerified, InvalidToken, UserLoggedOut
 from app.core.auth import (
     create_access_token,
     get_current_user_dependency,
@@ -40,7 +40,7 @@ from app.schemas.auth import (
 from app.db.models import InstitutionProfile, StudentProfile, User, Institution, UserRole
 from app.core.config import settings
 from app.utils.resend_email import MailService
-import resend, os
+import resend
 
 router = APIRouter()
 user_service = UserService()
@@ -315,7 +315,6 @@ async def create_student_profile(
             department=created_student.department
         )
     )
-
 
 
 # ==============================
