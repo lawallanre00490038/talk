@@ -11,7 +11,8 @@ from app.db.session import get_session
 from app.core.auth import get_current_user_dependency
 from app.core.config import settings
 from app.db.models import Institution, Media, MediaType, Post, PostType, UploadedDocument, UserRole, PostPrivacy, StudentProfile
-from app.schemas.institution import InstitutionPublic, UploadedDocumentCreate, UploadedDocumentPublic, InstitutionTimelineResponse, PostPublic
+from app.schemas.institution import InstitutionPublic, UploadedDocumentCreate, UploadedDocumentPublic, InstitutionTimelineResponse
+from app.schemas.post import PostPublic
 from app.schemas.auth import TokenUser
 from app.db.repositories.institution_repo import institution_repo
 from app.tasks.media_tasks import process_video_thumbnail
@@ -41,7 +42,7 @@ async def get_institution(
 
 
 
-@router.get("/{institution_id}/posts", response_model=List[PostPublic])
+@router.get("/{institution_id}/post", response_model=List[PostPublic])
 async def get_posts_by_institution(
     *,
     institution_id: str,
@@ -69,6 +70,7 @@ async def get_posts_by_institution(
     
     result = await session.execute(stmt)
     return result.scalars().all()
+
 
 
 
