@@ -25,9 +25,10 @@ boto3
 python-dotenv
 
 cloudinary
-
+langchain-groq
+langchain-community
 
 
 # sentence-transformers 
 # langchain-huggingface 
-# langchain-groq
+

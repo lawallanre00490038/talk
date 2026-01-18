@@ -23,6 +23,7 @@ from app.api.routers import (
     messages,
     student_portal,
     institutions,
+    chat,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -64,6 +65,9 @@ api_prefix = settings.API_V1_STR
 app.include_router(auth.router, prefix=f"{api_prefix}/auth", tags=["Auth"])
 app.include_router(admin.router, prefix=f"{api_prefix}/admin", tags=["Admin"])
 app.include_router(users.router, prefix=f"{api_prefix}/users", tags=["Users"])
+
+app.include_router(chat.router, prefix=f"{api_prefix}/chats", tags=["Chats"])
+
 app.include_router(posts.router, prefix=f"{api_prefix}/posts", tags=["Posts & Reels"])
 app.include_router(comments.router, prefix=f"{api_prefix}/posts/{{post_id}}/comments", tags=["Comments"])
 app.include_router(likes.router, prefix=f"{api_prefix}/likes", tags=["Likes"])
