@@ -27,7 +27,7 @@ python-dotenv
 cloudinary
 langchain-groq
 langchain-community
-
+langchain-tavily
 
 # sentence-transformers 
 # langchain-huggingface 
